@@ -1,0 +1,120 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow manual trigger from the GitHub UI
+
+jobs:
+  # ── 1. Build React frontend ──────────────────────────────────────────────
+  build:
+    name: Build frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        env:
+          # URL the compiled app will call — set this in GitHub repo secrets
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: npm run build    # → frontend/dist/
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  # ── 2. Deploy to cPanel shared hosting ──────────────────────────────────
+  deploy:
+    name: Deploy to server
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download built frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      # ── SSH setup ────────────────────────────────────────────────────────
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      # ── Deploy React SPA → public_html (or subdomain folder) ─────────────
+      # Rsync the built dist directly into the web root.
+      # Vite fingerprints all JS/CSS filenames so --delete is safe.
+      - name: Deploy frontend
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${{ secrets.SSH_PORT }}" \
+            frontend/dist/ \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.FRONTEND_PATH }}/"
+
+      # ── Deploy Laravel backend (above the web root) ───────────────────────
+      # Excludes: vendor (composer installs on server), .env (lives only on server),
+      # storage runtime dirs, and the public/ symlink target.
+      - name: Deploy backend
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${{ secrets.SSH_PORT }}" \
+            --exclude='.env' \
+            --exclude='vendor/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/cache/' \
+            --exclude='storage/framework/sessions/' \
+            --exclude='storage/framework/views/' \
+            --exclude='storage/app/public/' \
+            backend/ \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.BACKEND_PATH }}/"
+
+      # ── Post-deploy tasks on the server ──────────────────────────────────
+      # PHP binary on cPanel varies by host. Common values:
+      #   php  |  php8.2  |  /usr/local/bin/php82  |  /opt/cpanel/ea-php82/root/usr/bin/php
+      # Set SSH_PHP_BIN in GitHub secrets to match your host's binary.
+      - name: Post-deploy tasks
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" \
+              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << ENDSSH
+            set -e
+            cd "${{ secrets.BACKEND_PATH }}"
+            PHP="${{ secrets.SSH_PHP_BIN }}"
+            PHP=\${PHP:-php}   # fall back to plain "php" if secret not set
+
+            echo "==> Composer install..."
+            \$PHP \$(which composer) install --no-dev --optimize-autoloader --no-interaction
+
+            echo "==> Migrations..."
+            \$PHP artisan migrate --force
+
+            echo "==> Caching..."
+            \$PHP artisan config:cache
+            \$PHP artisan route:cache
+            \$PHP artisan view:cache
+            \$PHP artisan event:cache
+
+            echo "==> Storage link..."
+            \$PHP artisan storage:link --force 2>/dev/null || true
+
+            echo "==> Done."
+          ENDSSH
