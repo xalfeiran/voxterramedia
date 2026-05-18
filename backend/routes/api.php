@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CountryController;
 use App\Http\Controllers\Api\V1\MediaOutletController;
 use App\Http\Controllers\Api\V1\RegionController;
+use App\Http\Controllers\Api\V1\ScoutRunController;
 use App\Http\Controllers\Api\V1\StatsController;
 use Illuminate\Support\Facades\Route;
 
@@ -54,5 +55,13 @@ Route::prefix('v1')->group(function () {
         Route::post('media-outlets/bulk-import',
             [BulkImportController::class, 'import']
         )->name('admin.media-outlets.bulk-import');
+
+        // ── Scout runs (read-only — writes come from the Python bot) ──────────
+        Route::get('scout-runs/stats',   [ScoutRunController::class, 'stats'])
+            ->name('admin.scout-runs.stats');
+        Route::get('scout-runs',         [ScoutRunController::class, 'index'])
+            ->name('admin.scout-runs.index');
+        Route::get('scout-runs/{id}',    [ScoutRunController::class, 'show'])
+            ->name('admin.scout-runs.show');
     });
 });

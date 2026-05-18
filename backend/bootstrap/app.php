@@ -19,6 +19,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         ]);
     })
+    ->withCommands([
+        \App\Console\Commands\ScoutRun::class,
+    ])
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
+        // Run 3 random-country scout jobs every day at 03:00 AM
+        // Uncomment (and adjust) once you have the Python deps installed:
+        // $schedule->command('scout:run --jobs=3')->dailyAt('03:00');
+    })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(fn($request) =>
             $request->is('api/*') || $request->wantsJson()
