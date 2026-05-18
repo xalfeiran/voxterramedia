@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe, Newspaper, Radio, Tv, MapPin, ChevronRight, ExternalLink, Star, GitBranch, Send, CheckCircle2 } from 'lucide-react'
+import { Globe, Newspaper, Radio, Tv, MapPin, ChevronRight, ExternalLink, Star, GitBranch, Send, CheckCircle2, Menu, X } from 'lucide-react'
 import { useStats } from '@/api/queries'
 import WorldMapBackground from '@/components/WorldMapBackground'
 import { useSeo } from '@/hooks/useSeo'
@@ -296,6 +296,7 @@ function FeaturedCard({ outlet }: { outlet: FeaturedOutlet }) {
 // ── Main landing page ─────────────────────────────────────────────────────
 export default function LandingPage() {
   const { data: stats } = useStats()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useSeo({
     title      : 'VoxTerra.media — Worldwide News Media Catalog',
@@ -349,21 +350,14 @@ export default function LandingPage() {
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center">
-            <img
-              src="/voxterra-logo.svg"
-              alt="VoxTerra.media"
-              className="h-9 w-auto"
-            />
-          </div>
-          <div className="flex items-center gap-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <img src="/voxterra-logo.svg" alt="VoxTerra.media" className="h-8 sm:h-9 w-auto" />
+
+          {/* Desktop links */}
+          <div className="hidden sm:flex items-center gap-6">
             <Link to="/explore"      className="text-sm text-slate-400 hover:text-white transition-colors">Explore</Link>
-            <Link to="/countries/US" className="text-sm text-slate-400 hover:text-white transition-colors hidden sm:block">Countries</Link>
-            <a
-              href="#contribute"
-              className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors hidden sm:flex items-center gap-1"
-            >
+            <Link to="/countries/US" className="text-sm text-slate-400 hover:text-white transition-colors">Countries</Link>
+            <a href="#contribute" className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
               <GitBranch className="w-3.5 h-3.5" />
               Contribute
             </a>
@@ -371,7 +365,49 @@ export default function LandingPage() {
               Open Map
             </Link>
           </div>
+
+          {/* Mobile: Open Map + hamburger */}
+          <div className="flex sm:hidden items-center gap-2">
+            <Link to="/explore" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
+              Open Map
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(o => !o)}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile dropdown */}
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-t border-slate-800 bg-slate-950 px-4 py-3 flex flex-col gap-1">
+            <Link
+              to="/explore"
+              onClick={() => setMobileMenuOpen(false)}
+              className="py-2.5 px-3 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              Explore Map
+            </Link>
+            <Link
+              to="/countries/US"
+              onClick={() => setMobileMenuOpen(false)}
+              className="py-2.5 px-3 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              Countries
+            </Link>
+            <a
+              href="#contribute"
+              onClick={() => setMobileMenuOpen(false)}
+              className="py-2.5 px-3 rounded-lg text-sm text-emerald-400 hover:text-emerald-300 hover:bg-slate-800 transition-colors flex items-center gap-2"
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              Contribute
+            </a>
+          </div>
+        )}
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
@@ -379,7 +415,7 @@ export default function LandingPage() {
         {/* World map background — outlet dots are live catalog data */}
         <WorldMapBackground />
 
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 text-center">
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
           <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-1.5 mb-8">
             <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
             <span className="text-xs text-blue-300 font-medium">Live catalog · {stats?.total ?? 66} outlets</span>
@@ -425,7 +461,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Stats ───────────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Outlets"    value={stats?.total ?? 66}                            icon={Newspaper} color="bg-blue-500/10 text-blue-400" />
           <StatCard label="National Media"   value={stats?.by_type?.national ?? 12}               icon={Globe}     color="bg-purple-500/10 text-purple-400" />
@@ -435,7 +471,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Countries ───────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 pb-16">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-white">Browse by Country</h2>
           <p className="text-slate-400 mt-1">Click a country to see all its outlets grouped by region and city. Covering every continent.</p>
@@ -448,7 +484,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Featured ────────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 pb-16">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-bold text-white">Featured Outlets</h2>
@@ -464,7 +500,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Contribute ──────────────────────────────────────────────────── */}
-      <section id="contribute" className="max-w-6xl mx-auto px-6 pb-16">
+      <section id="contribute" className="max-w-6xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div className="relative bg-gradient-to-br from-emerald-900/20 to-slate-900 border border-emerald-500/15 rounded-3xl overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom-right,_var(--tw-gradient-stops))] from-emerald-500/8 via-transparent to-transparent pointer-events-none" />
 
@@ -521,8 +557,8 @@ export default function LandingPage() {
       </section>
 
       {/* ── CTA Banner ──────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 pb-20">
-        <div className="relative bg-gradient-to-br from-blue-900/40 to-slate-900 border border-blue-500/20 rounded-3xl p-10 text-center overflow-hidden">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 sm:pb-20">
+        <div className="relative bg-gradient-to-br from-blue-900/40 to-slate-900 border border-blue-500/20 rounded-3xl p-8 sm:p-10 text-center overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
           <div className="relative">
             <h2 className="text-3xl font-bold text-white mb-4">Ready to explore?</h2>
@@ -543,12 +579,12 @@ export default function LandingPage() {
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800 py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-slate-500 text-sm">
             <MindwareLogo className="w-5 h-5 rounded-sm object-contain opacity-50" />
             <span>VoxTerra.media &mdash; a <a href="https://mindware.com.mx" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition-colors">mindware</a> product</span>
           </div>
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm">
             <Link to="/explore"       className="text-slate-500 hover:text-slate-300 transition-colors">Explore</Link>
             <Link to="/countries/US"  className="text-slate-500 hover:text-slate-300 transition-colors">USA</Link>
             <Link to="/countries/GB"  className="text-slate-500 hover:text-slate-300 transition-colors">UK</Link>

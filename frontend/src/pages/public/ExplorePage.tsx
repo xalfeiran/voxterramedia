@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react'
-import { Search, Globe, Filter } from 'lucide-react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { Search, Globe, Filter, Menu, X, ChevronLeft } from 'lucide-react'
 import { useMapOutlets } from '@/api/queries'
 import { useFilterStore } from '@/stores/filterStore'
 import { COUNTRY_COLORS, COUNTRY_NAMES, TYPE_LABELS, formatUrl } from '@/lib/utils'
@@ -12,6 +12,19 @@ export default function ExplorePage() {
   const { data: outlets = [], isLoading } = useMapOutlets()
   const { country, type, search, setCountry, setType, setSearch } = useFilterStore()
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number } | null>(null)
+
+  // Sidebar open: default open on desktop, closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768)
+
+  // Close sidebar when resizing down to mobile
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth < 768) setSidebarOpen(false)
+      else setSidebarOpen(true)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useSeo({
     title      : 'Explore — Interactive World Media Map',
@@ -42,19 +55,51 @@ export default function ExplorePage() {
 
   const handleItemClick = useCallback((outlet: MapOutlet) => {
     setFlyTo({ lat: outlet.lat, lon: outlet.lon })
+    // Auto-close sidebar on mobile after selecting an outlet
+    if (window.innerWidth < 768) setSidebarOpen(false)
   }, [])
 
+  const isMobile = () => window.innerWidth < 768
+
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-80 flex-none bg-slate-900 border-r border-slate-800 flex flex-col">
+    <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden relative">
+
+      {/* ── Mobile backdrop ────────────────────────────────────────────────── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      <aside
+        className={`
+          fixed md:relative inset-y-0 left-0 z-40
+          w-80 flex-none bg-slate-900 border-r border-slate-800 flex flex-col
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          ${!sidebarOpen ? 'md:w-0 md:overflow-hidden md:border-0' : ''}
+        `}
+        style={{ willChange: 'transform' }}
+      >
         {/* Header */}
-        <div className="p-4 border-b border-slate-800">
-          <h1 className="text-base font-semibold text-white flex items-center gap-2">
-            <Globe className="w-4 h-4 text-blue-400" />
-            News Media Explorer
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Worldwide · {outlets.length} outlets</p>
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <h1 className="text-base font-semibold text-white flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-400" />
+              News Media Explorer
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">Worldwide · {outlets.length} outlets</p>
+          </div>
+          {/* Close button — visible on all sizes when sidebar is open */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close sidebar"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Filters */}
@@ -163,12 +208,26 @@ export default function ExplorePage() {
             </button>
           ))}
         </div>
+
         {/* Bot scout panel — pinned to bottom of sidebar */}
         <BotStatusPanel />
       </aside>
 
-      {/* Map */}
-      <main className="flex-1">
+      {/* ── Map area ───────────────────────────────────────────────────────── */}
+      <main className="flex-1 relative min-w-0">
+
+        {/* Hamburger — shown when sidebar is closed */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="absolute top-3 left-3 z-20 flex items-center gap-2 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg shadow-lg backdrop-blur-sm transition-all text-sm font-medium"
+            aria-label="Open sidebar"
+          >
+            <Menu className="w-4 h-4" />
+            <span className="hidden sm:inline">Filters</span>
+          </button>
+        )}
+
         <ExploreMap outlets={filtered} onMarkerClick={handleItemClick} flyTo={flyTo} />
       </main>
     </div>
