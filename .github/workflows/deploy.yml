@@ -105,6 +105,7 @@ jobs:
           rsync -az --delete \
             -e "ssh -p ${{ secrets.SSH_PORT }}" \
             --exclude='.env' \
+            --exclude='bootstrap/cache/' \
             --exclude='storage/logs/' \
             --exclude='storage/framework/cache/' \
             --exclude='storage/framework/sessions/' \
@@ -122,6 +123,7 @@ jobs:
                PHP=${{ secrets.SSH_PHP_BIN }} && \
                PHP=\${PHP:-php} && \
                cd ${{ secrets.BACKEND_PATH }} && \
+               rm -f bootstrap/cache/*.php && \
                \$PHP artisan migrate --force && \
                \$PHP artisan config:cache && \
                \$PHP artisan route:cache && \
