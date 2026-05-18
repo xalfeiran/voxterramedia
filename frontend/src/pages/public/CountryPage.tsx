@@ -3,11 +3,20 @@ import { ChevronRight } from 'lucide-react'
 import { useCountry, useMediaOutlets } from '@/api/queries'
 import { TYPE_LABELS, COUNTRY_COLORS, formatUrl } from '@/lib/utils'
 import type { CountryCode, MediaType } from '@/types'
+import { useSeo } from '@/hooks/useSeo'
 
 export default function CountryPage() {
   const { code = '' } = useParams<{ code: string }>()
   const { data: country, isLoading } = useCountry(code.toUpperCase())
   const { data: outletsData } = useMediaOutlets({ country: code.toUpperCase(), per_page: 100 })
+
+  useSeo({
+    title      : country ? `${country.flag_emoji} ${country.name} — News Media Outlets` : 'Country Media Outlets',
+    description: country
+      ? `Discover ${outletsData?.data?.length ?? ''} news media outlets in ${country.name}. Browse newspapers, TV channels, radio stations and digital media from ${country.name}.`
+      : 'Explore news media outlets by country on VoxTerra.media.',
+    canonical  : `https://voxterra.media/countries/${code.toLowerCase()}`,
+  })
 
   if (isLoading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">

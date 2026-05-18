@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /admin/login
+
+# Keep API endpoints private from crawlers
+Disallow: /api/
+
+# Sitemap index
+Sitemap: https://voxterra.media/sitemap.xml

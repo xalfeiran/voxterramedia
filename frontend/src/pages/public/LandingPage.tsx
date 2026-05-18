@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Globe, Newspaper, Radio, Tv, MapPin, ChevronRight, ExternalLink, Star, GitBranch, Send, CheckCircle2 } from 'lucide-react'
 import { useStats } from '@/api/queries'
 import WorldMapBackground from '@/components/WorldMapBackground'
+import { useSeo } from '@/hooks/useSeo'
 
 /**
  * Mindware logo — replace /mindware-logo.png in frontend/public/ with the
@@ -295,6 +296,12 @@ function FeaturedCard({ outlet }: { outlet: FeaturedOutlet }) {
 // ── Main landing page ─────────────────────────────────────────────────────
 export default function LandingPage() {
   const { data: stats } = useStats()
+
+  useSeo({
+    title      : 'VoxTerra.media — Worldwide News Media Catalog',
+    description: 'Explore an interactive map of news media outlets from every country. Search, filter, and discover thousands of newspapers, TV channels, radio stations, and digital media around the globe.',
+    canonical  : 'https://voxterra.media',
+  })
 
   const COUNTRY_META: Record<string, { emoji: string; color: string; fallback: number }> = {
     US: { emoji: '🇺🇸', color: '#3b82f6', fallback: 28 },

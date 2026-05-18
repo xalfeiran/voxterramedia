@@ -1,12 +1,55 @@
+import { useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ChevronRight, ExternalLink, MapPin, Calendar, Globe } from 'lucide-react'
 import { useMediaOutlet } from '@/api/queries'
 import { TYPE_LABELS, COUNTRY_COLORS } from '@/lib/utils'
 import type { CountryCode, MediaType } from '@/types'
+import { useSeo } from '@/hooks/useSeo'
 
 export default function OutletPage() {
   const { slug = '' } = useParams<{ slug: string }>()
   const { data: outlet, isLoading } = useMediaOutlet(slug)
+
+  useSeo({
+    title      : outlet ? `${outlet.name} — ${outlet.country?.name ?? ''} Media` : 'Media Outlet',
+    description: outlet
+      ? (outlet.description ?? `${outlet.name} is a ${TYPE_LABELS[outlet.type as MediaType] ?? outlet.type} media outlet based in ${outlet.country?.name ?? ''}. Explore coverage, language, and contact details on VoxTerra.media.`)
+      : 'Explore this media outlet on VoxTerra.media.',
+    canonical  : `https://voxterra.media/outlets/${slug}`,
+    ogType     : 'article',
+  })
+
+  // JSON-LD structured data for NewsMediaOrganization
+  useEffect(() => {
+    if (!outlet) return
+
+    const existingScript = document.getElementById('jsonld-outlet')
+    if (existingScript) existingScript.remove()
+
+    const script = document.createElement('script')
+    script.id   = 'jsonld-outlet'
+    script.type = 'application/ld+json'
+    script.text = JSON.stringify({
+      '@context'   : 'https://schema.org',
+      '@type'      : 'NewsMediaOrganization',
+      'name'       : outlet.name,
+      'url'        : outlet.url ?? undefined,
+      'logo'       : outlet.logo_url ?? undefined,
+      'foundingDate': outlet.founded_year ? String(outlet.founded_year) : undefined,
+      'inLanguage' : outlet.language,
+      'description': outlet.description ?? undefined,
+      'location'   : {
+        '@type'  : 'Place',
+        'address': {
+          '@type'  : 'PostalAddress',
+          'addressCountry': outlet.country?.code ?? undefined,
+        },
+      },
+    })
+    document.head.appendChild(script)
+
+    return () => { script.remove() }
+  }, [outlet])
 
   if (isLoading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">

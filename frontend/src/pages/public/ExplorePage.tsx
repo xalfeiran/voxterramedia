@@ -6,11 +6,18 @@ import { COUNTRY_COLORS, COUNTRY_NAMES, TYPE_LABELS, formatUrl } from '@/lib/uti
 import type { CountryCode, MapOutlet, MediaType } from '@/types'
 import ExploreMap from '@/components/map/ExploreMap'
 import BotStatusPanel from '@/components/map/BotStatusPanel'
+import { useSeo } from '@/hooks/useSeo'
 
 export default function ExplorePage() {
   const { data: outlets = [], isLoading } = useMapOutlets()
   const { country, type, search, setCountry, setType, setSearch } = useFilterStore()
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number } | null>(null)
+
+  useSeo({
+    title      : 'Explore — Interactive World Media Map',
+    description: 'Browse thousands of newspapers, TV channels, radio stations, and digital outlets on an interactive world map. Filter by country, type, or language.',
+    canonical  : 'https://voxterra.media/explore',
+  })
 
   const filtered = useMemo(() => {
     let result = outlets
