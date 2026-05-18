@@ -12,8 +12,10 @@ Extracted fields:
   social       — dict of social-media profile URLs found
 """
 
+import json
 import logging
 import re
+import socket
 import time
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
@@ -156,6 +158,192 @@ def _find_social(soup: BeautifulSoup) -> Dict[str, str]:
     return social
 
 
+# ── Location extraction ───────────────────────────────────────────────────────
+
+def _extract_location_from_html(soup: BeautifulSoup) -> Dict[str, str]:
+    """
+    Try to extract city / region from the page's own markup.
+    Returns a dict with any of: city, region, country_name.
+    """
+    result = {}  # type: Dict[str, str]
+
+    # 1. JSON-LD (schema.org) — most reliable
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+            # Handle both single object and @graph array
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                addr = item.get("address") or item.get("location", {})
+                if isinstance(addr, dict):
+                    if addr.get("addressLocality"):
+                        result["city"] = addr["addressLocality"].strip()
+                    if addr.get("addressRegion"):
+                        result["region"] = addr["addressRegion"].strip()
+                    if addr.get("addressCountry"):
+                        result["country_name"] = addr["addressCountry"].strip()
+                if result.get("city"):
+                    return result
+        except Exception:
+            pass
+
+    # 2. <meta name="geo.placename"> / <meta name="geo.region">
+    geo_place = soup.find("meta", attrs={"name": re.compile(r"geo\.placename", re.I)})
+    if geo_place and geo_place.get("content"):
+        result["city"] = geo_place["content"].strip()
+
+    geo_region = soup.find("meta", attrs={"name": re.compile(r"geo\.region", re.I)})
+    if geo_region and geo_region.get("content"):
+        result["region"] = geo_region["content"].strip()
+
+    if result.get("city"):
+        return result
+
+    # 3. OpenGraph locality tags (used by some CMSes)
+    for prop in ("og:locality", "og:region"):
+        tag = soup.find("meta", property=prop)
+        if tag and tag.get("content"):
+            key = "city" if prop == "og:locality" else "region"
+            result[key] = tag["content"].strip()
+
+    return result
+
+
+# ── Nominatim geocoder (OpenStreetMap, free, no key) ─────────────────────────
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_HEADERS = {
+    "User-Agent": config.USER_AGENT,
+    "Accept-Language": "en",
+}
+
+
+def _geocode_nominatim(city: str, country_name: str) -> Optional[Dict]:
+    """
+    Look up `city, country_name` on Nominatim.
+    Returns {"city": str, "region": str, "latitude": float, "longitude": float}
+    or None on failure.
+    """
+    query = "{}, {}".format(city, country_name)
+    try:
+        resp = _SESSION.get(
+            _NOMINATIM_URL,
+            params={"q": query, "format": "json", "limit": 1, "addressdetails": 1},
+            headers=_NOMINATIM_HEADERS,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.debug("Nominatim error for %r: %s", query, exc)
+        return None
+
+    if not data:
+        return None
+
+    hit     = data[0]
+    addr    = hit.get("address", {})
+    lat     = float(hit.get("lat", 0))
+    lon     = float(hit.get("lon", 0))
+
+    # Nominatim returns the city under several keys depending on place type
+    city_name = (
+        addr.get("city")
+        or addr.get("town")
+        or addr.get("village")
+        or addr.get("municipality")
+        or city  # fall back to the query term
+    )
+    region_name = addr.get("state") or addr.get("county") or ""
+
+    return {
+        "city":      city_name,
+        "region":    region_name,
+        "latitude":  lat,
+        "longitude": lon,
+    }
+
+
+# ── IP geolocation fallback ───────────────────────────────────────────────────
+
+_IPAPI_URL = "http://ip-api.com/json/{}"
+
+
+def _geolocate_by_ip(domain: str) -> Optional[Dict]:
+    """
+    Resolve domain → IP, then call ip-api.com (free, 45 req/min).
+    Returns {"city": str, "region": str, "latitude": float, "longitude": float}
+    or None on failure.
+    """
+    try:
+        ip = socket.gethostbyname(domain)
+    except Exception:
+        return None
+
+    # Skip private/loopback addresses
+    if ip.startswith(("10.", "192.168.", "127.", "172.")):
+        return None
+
+    try:
+        resp = _SESSION.get(
+            _IPAPI_URL.format(ip),
+            timeout=8,
+            headers={"User-Agent": config.USER_AGENT},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.debug("ip-api error for %s: %s", domain, exc)
+        return None
+
+    if data.get("status") != "success":
+        return None
+
+    return {
+        "city":      data.get("city", ""),
+        "region":    data.get("regionName", ""),
+        "latitude":  float(data.get("lat", 0)),
+        "longitude": float(data.get("lon", 0)),
+    }
+
+
+def resolve_geo(
+    soup: BeautifulSoup,
+    url: str,
+    country_name: str,
+) -> Optional[Dict]:
+    """
+    Best-effort geolocation for a news site.
+
+    Strategy:
+      1. Extract city name from the page HTML (schema.org / meta tags)
+      2. If found, geocode it with Nominatim (OSM)
+      3. If not found, fall back to IP geolocation (ip-api.com)
+
+    Returns {"city": str, "region": str, "latitude": float, "longitude": float}
+    or None if nothing could be determined.
+    """
+    # Step 1 — HTML extraction
+    location = _extract_location_from_html(soup)
+    city_hint = location.get("city", "").strip()
+
+    # Step 2 — Nominatim geocode
+    if city_hint:
+        geo = _geocode_nominatim(city_hint, country_name)
+        if geo and (geo["latitude"] or geo["longitude"]):
+            log.debug("Geo (Nominatim): %s → %.4f, %.4f", city_hint, geo["latitude"], geo["longitude"])
+            return geo
+
+    # Step 3 — IP fallback
+    domain = urlparse(url).netloc.lstrip("www.")
+    geo = _geolocate_by_ip(domain)
+    if geo and (geo["latitude"] or geo["longitude"]):
+        log.debug("Geo (IP): %s → %.4f, %.4f", domain, geo["latitude"], geo["longitude"])
+        return geo
+
+    return None
+
+
 # ── Canonical URL ─────────────────────────────────────────────────────────────
 
 def _canonical(soup: BeautifulSoup, fallback: str) -> str:
@@ -170,13 +358,15 @@ def _canonical(soup: BeautifulSoup, fallback: str) -> str:
 
 # ── Main enrichment function ──────────────────────────────────────────────────
 
-def enrich(url: str, search_title: str = "", search_snippet: str = "") -> Optional[Dict]:
+def enrich(url: str, search_title: str = "", search_snippet: str = "",
+           country_name: str = "") -> Optional[Dict]:
     """
     Fetch `url` and return an enriched metadata dict, or None if unreachable.
 
     The dict always contains at least:
         url, name, description, language, type, logo_url,
-        rss_feeds, social, canonical
+        rss_feeds, social, canonical,
+        city, region, latitude, longitude   ← geolocation fields
     """
     time.sleep(config.REQUEST_DELAY)
 
@@ -232,6 +422,13 @@ def enrich(url: str, search_title: str = "", search_snippet: str = "") -> Option
     canonical   = _canonical(soup, final_url)
     media_type  = _detect_type(final_url, name, description)
 
+    # ── Geolocation ───────────────────────────────────────────────────────────
+    geo = resolve_geo(soup, final_url, country_name or "")
+    city_name   = geo["city"]    if geo else ""
+    region_name = geo["region"]  if geo else ""
+    latitude    = geo["latitude"]  if geo else None
+    longitude   = geo["longitude"] if geo else None
+
     return {
         "url":         final_url,
         "canonical":   canonical,
@@ -242,4 +439,8 @@ def enrich(url: str, search_title: str = "", search_snippet: str = "") -> Option
         "logo_url":    logo_url,
         "rss_feeds":   rss_feeds,
         "social":      social,
+        "city":        city_name,
+        "region":      region_name,
+        "latitude":    latitude,
+        "longitude":   longitude,
     }

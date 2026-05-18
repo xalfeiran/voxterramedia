@@ -145,30 +145,65 @@ def run_job(
         log.info("  [%d] %s", urls_found, url)
 
         # ── Enrich ────────────────────────────────────────────────────────────
-        meta = enricher.enrich(url, search_title=title, search_snippet=snippet)
+        meta = enricher.enrich(
+            url,
+            search_title=title,
+            search_snippet=snippet,
+            country_name=country["name"],
+        )
         if meta is None:
             log.warning("    ↳ could not enrich — skipping")
             urls_skipped += 1
             continue
 
         log.info(
-            "    ↳ name=%r  lang=%s  type=%s  rss=%d",
-            meta["name"], meta["language"], meta["type"], len(meta["rss_feeds"]),
+            "    ↳ name=%r  lang=%s  type=%s  city=%r  rss=%d",
+            meta["name"], meta["language"], meta["type"],
+            meta.get("city") or "—", len(meta["rss_feeds"]),
         )
 
         if dry_run:
             urls_saved += 1
             continue
 
-        # ── Resolve city_id (national stub) ───────────────────────────────────
-        if national_city_id is None:
-            national_city_id = db.get_or_create_national_city(conn, country)
+        # ── Resolve city_id ───────────────────────────────────────────────────
+        city_name   = meta.get("city", "").strip()
+        region_name = meta.get("region", "").strip()
+        lat         = meta.get("latitude")
+        lon         = meta.get("longitude")
+
+        if city_name:
+            # We have a real city — find or create it with proper coordinates
+            try:
+                region_id = db.find_or_create_region(
+                    conn,
+                    country_id=country["id"],
+                    region_name=region_name or city_name,
+                    region_code="",
+                )
+                city_id = db.find_or_create_city(
+                    conn,
+                    region_id=region_id,
+                    city_name=city_name,
+                    lat=lat or 0.0,
+                    lon=lon or 0.0,
+                )
+            except Exception as exc:
+                log.warning("    ↳ city lookup failed (%s), using national stub", exc)
+                if national_city_id is None:
+                    national_city_id = db.get_or_create_national_city(conn, country)
+                city_id = national_city_id
+        else:
+            # No city detected — fall back to national stub
+            if national_city_id is None:
+                national_city_id = db.get_or_create_national_city(conn, country)
+            city_id = national_city_id
 
         # ── Upsert ────────────────────────────────────────────────────────────
         try:
             outlet_id, created = db.upsert_media_outlet(
                 conn,
-                city_id=national_city_id,
+                city_id=city_id,
                 data={
                     "url":         meta["url"],
                     "name":        meta["name"],
@@ -176,6 +211,8 @@ def run_job(
                     "language":    meta["language"],
                     "description": meta["description"],
                     "logo_url":    meta["logo_url"],
+                    "latitude":    lat,
+                    "longitude":   lon,
                 },
             )
             action = "created" if created else "updated"
