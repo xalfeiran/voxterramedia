@@ -236,16 +236,21 @@ def main() -> None:
     log.info("  Dry run: %s", args.dry_run)
     log.info("=" * 60)
 
+    # Always connect — needed for country selection and scout_run logging.
+    # In dry-run mode the connection is used read-only (no inserts/updates).
     conn = None
-    if not args.dry_run:
-        try:
-            conn = db.get_connection()
-            db.ensure_scout_runs_table(conn)
-            log.info("DB connection OK")
-        except Exception as exc:
-            log.error("Cannot connect to DB: %s", exc)
-            log.info("Falling back to dry-run mode (no DB writes).")
-            args.dry_run = True
+    try:
+        conn = db.get_connection()
+        db.ensure_scout_runs_table(conn)
+        log.info("DB connection OK")
+    except Exception as exc:
+        log.warning("Cannot connect to DB: %s", exc)
+        if args.dry_run and args.country:
+            # Acceptable: we can still search + enrich without DB
+            log.info("Continuing in offline dry-run mode (no DB access).")
+        else:
+            log.error("DB connection required. Use --dry-run --country=XX to run without DB.")
+            sys.exit(1)
 
     totals = {"found": 0, "saved": 0, "skipped": 0}
 
