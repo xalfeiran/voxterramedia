@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 class SitemapController extends Controller
 {
     private const BASE_URL = 'https://voxterra.media';
+    private const API_URL  = 'https://api.voxterra.media';
 
     // ── Sitemap index ─────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ class SitemapController extends Controller
 
         $xml = view('sitemaps.index', [
             'baseUrl' => self::BASE_URL,
+            'apiUrl'  => self::API_URL,
             'lastmod' => $lastmod,
         ])->render();
 
