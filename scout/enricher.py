@@ -15,6 +15,7 @@ Extracted fields:
 import logging
 import re
 import time
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests

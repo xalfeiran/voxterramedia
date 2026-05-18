@@ -13,6 +13,11 @@ import logging
 import time
 from typing import Dict, Generator, List, Set
 
+from urllib.parse import parse_qs, urlparse as _urlparse
+
+import requests
+from bs4 import BeautifulSoup
+
 import config
 
 log = logging.getLogger(__name__)
@@ -107,55 +112,64 @@ def _search_serpapi(query: str, num: int = 10) -> List[Dict]:
         return []
 
 
-# ── DuckDuckGo fallback ───────────────────────────────────────────────────────
-# Supports both API shapes:
-#   v2.x  (Python 3.6 compatible) — uses ddg() function
-#   v3.x+ (Python 3.8+)           — uses DDGS class with context manager
+# ── DuckDuckGo HTML scraper (no library, Python 3.6 safe) ────────────────────
+#
+# POSTs to https://html.duckduckgo.com/html/ — the same lite endpoint used
+# by curl-based integrations. No API key, no third-party package needed.
+# Only requires `requests` + `beautifulsoup4`, which are already in deps.
+
+_DDG_URL = "https://html.duckduckgo.com/html/"
+_DDG_HEADERS = {
+    "User-Agent":      config.USER_AGENT,
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept":          "text/html,application/xhtml+xml",
+    "Referer":         "https://duckduckgo.com/",
+}
+
 
 def _search_ddg(query: str, num: int = 10) -> List[Dict]:
-    # Try v3+ DDGS class first (ddgs package or duckduckgo-search >= 3)
+    """Scrape DuckDuckGo HTML lite endpoint — zero external dependencies."""
     try:
-        try:
-            from ddgs import DDGS  # type: ignore
-        except ImportError:
-            from duckduckgo_search import DDGS  # type: ignore  # noqa
-
-        results = []
-        with DDGS() as ddgs_client:
-            for r in ddgs_client.text(query, max_results=num):
-                results.append({
-                    "url":     r.get("href", ""),
-                    "title":   r.get("title", ""),
-                    "snippet": r.get("body", ""),
-                })
-        return results
-
-    except ImportError:
-        pass  # fall through to v2 API below
+        resp = requests.post(
+            _DDG_URL,
+            data={"q": query, "kl": "us-en"},
+            headers=_DDG_HEADERS,
+            timeout=15,
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
     except Exception as exc:
-        log.warning("DDG v3 error: %s", exc)
+        log.warning("DDG request failed: %s", exc)
         return []
 
-    # Fall back to duckduckgo-search v2 API (ddg() function, Python 3.6 safe)
-    try:
-        from duckduckgo_search import ddg  # type: ignore
-    except ImportError:
-        log.error("No DDG package found. Run: pip install duckduckgo-search==2.0.2")
-        return []
+    soup = BeautifulSoup(resp.text, "html.parser")
+    results = []
 
-    try:
-        raw = ddg(query, max_results=num) or []
-        return [
-            {
-                "url":     r.get("href", ""),
-                "title":   r.get("title", ""),
-                "snippet": r.get("body", ""),
-            }
-            for r in raw
-        ]
-    except Exception as exc:
-        log.warning("DDG v2 error: %s", exc)
-        return []
+    for result in soup.select(".result"):
+        # Title + URL
+        a_tag = result.select_one(".result__a")
+        if not a_tag:
+            continue
+        title = a_tag.get_text(strip=True)
+        href  = a_tag.get("href", "")
+
+        # DDG wraps the real URL in a redirect — unwrap it
+        if "duckduckgo.com/l/" in href:
+            qs  = parse_qs(_urlparse(href).query)
+            url = qs.get("uddg", [href])[0]
+        else:
+            url = href
+
+        # Snippet
+        snippet_tag = result.select_one(".result__snippet")
+        snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
+
+        if url:
+            results.append({"url": url, "title": title, "snippet": snippet})
+        if len(results) >= num:
+            break
+
+    return results
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

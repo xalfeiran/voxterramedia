@@ -12,7 +12,6 @@ PyMySQL>=0.9.0
 # Environment / config
 python-dotenv>=0.19.0
 
-# Search backends (install at least one)
-# Pinned to 2.0.2 — the last release compatible with Python 3.6
-duckduckgo-search==2.0.2
-# google-search-results>=2.4.2  # SerpAPI — uncomment if you have an API key
+# Search: no extra library needed — DDG HTML endpoint is scraped directly
+# Uncomment below if you have a SerpAPI key (more reliable):
+# google-search-results>=2.4.2
