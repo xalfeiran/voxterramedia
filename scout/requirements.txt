@@ -2,16 +2,16 @@
 # Install with:  pip install -r requirements.txt
 
 # HTTP & HTML parsing
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0                 # faster BS4 parser
+requests>=2.20.0
+beautifulsoup4>=4.9.0
+lxml>=4.5.0                 # faster BS4 parser
 
 # MySQL
-PyMySQL>=1.1.0
+PyMySQL>=0.9.0
 
 # Environment / config
-python-dotenv>=1.0.0
+python-dotenv>=0.19.0
 
 # Search backends (install at least one)
-ddgs>=0.1.0                 # free, no key — works out of the box (formerly duckduckgo-search)
+duckduckgo-search>=3.0.0    # free, no key — works out of the box
 # google-search-results>=2.4.2  # SerpAPI — uncomment if you have an API key
