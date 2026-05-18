@@ -32,8 +32,8 @@ class ScoutRun extends Command
                             {--delay=1.5 : Seconds between site fetch requests}
                             {--queries=0 : Limit query templates (0 = all)}
                             {--jobs=1    : Number of sequential scout jobs}
-                            {--dry-run   : Search + enrich but skip DB writes}
-                            {--verbose   : Pass --verbose to the Python script}';
+                            {--dry-run   : Search + enrich but skip DB writes}';
+    // Tip: pass -v (Laravel built-in verbosity flag) to also enable --verbose in the Python script
 
     protected $description = 'Run the VoxTerra AI Scout Bot to discover local news sites worldwide.';
 
@@ -112,7 +112,8 @@ class ScoutRun extends Command
             $cmd[] = '--dry-run';
         }
 
-        if ($this->option('verbose')) {
+        // -v or -vv (Laravel built-in verbosity flags) → pass --verbose to Python
+        if ($this->getOutput()->isVerbose()) {
             $cmd[] = '--verbose';
         }
 
