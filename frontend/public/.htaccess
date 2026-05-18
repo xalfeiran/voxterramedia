@@ -1,0 +1,8 @@
+Options -MultiViews
+RewriteEngine On
+
+# If the request is not for a real file or directory, send it to index.html
+# so React Router handles the route on the client side.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [QSA,L]
