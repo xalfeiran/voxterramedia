@@ -1,0 +1,59 @@
+# ── OS & editors ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Laravel (backend/) ────────────────────────────────────────────────────────
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/vendor/
+backend/node_modules/
+backend/storage/logs/*.log
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*
+backend/bootstrap/cache/*.php
+!backend/bootstrap/cache/.gitkeep
+backend/public/hot
+backend/public/storage
+backend/_ide_helper.php
+backend/_ide_helper_models.php
+backend/.phpstorm.meta.php
+backend/.php-cs-fixer.cache
+backend/phpunit.result.cache
+backend/.phpunit.result.cache
+
+# ── React / Vite (frontend/) ──────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/           # built by CI — never commit
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/.vite/
+
+# ── Python scout ──────────────────────────────────────────────────────────────
+scout/__pycache__/
+scout/*.pyc
+scout/.venv/
+scout/venv/
+scout/.env
+scout/*.log
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker/mysql/data/
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.log
+*.cache
+.env
+.env.local
+.env.*.local
