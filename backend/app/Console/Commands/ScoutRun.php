@@ -145,7 +145,7 @@ class ScoutRun extends Command
         $this->line("📦  Installing Python dependencies from requirements.txt...");
 
         $pip = new Process(
-            [$pythonBin, '-m', 'pip', 'install', '-r', $requirementsFile, '--quiet'],
+            [$pythonBin, '-m', 'pip', 'install', '-r', $requirementsFile, '--user', '--quiet'],
             cwd: dirname($scriptPath),
             timeout: 120,
         );
