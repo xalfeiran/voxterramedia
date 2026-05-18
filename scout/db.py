@@ -13,7 +13,7 @@ import re
 import random
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 import pymysql
 import pymysql.cursors
@@ -65,7 +65,7 @@ def ensure_scout_runs_table(conn: pymysql.connections.Connection) -> None:
 
 # ── Countries ─────────────────────────────────────────────────────────────────
 
-def get_all_countries(conn: pymysql.connections.Connection) -> list[dict]:
+def get_all_countries(conn: pymysql.connections.Connection) -> List[Dict]:
     with conn.cursor() as cur:
         cur.execute("SELECT id, code, name, name_es FROM countries ORDER BY name")
         return cur.fetchall()
@@ -178,7 +178,7 @@ def upsert_media_outlet(
     conn: pymysql.connections.Connection,
     city_id: int,
     data: dict,
-) -> tuple[int, bool]:
+) -> Tuple[int, bool]:
     """
     Insert or update a media_outlet row.
 

@@ -30,7 +30,7 @@ _SESSION = requests.Session()
 _SESSION.headers.update({"User-Agent": config.USER_AGENT})
 
 
-def _get(url: str) -> requests.Response | None:
+def _get(url: str) -> Optional[requests.Response]:
     """Fetch a URL, returning None on any error."""
     try:
         resp = _SESSION.get(url, timeout=config.REQUEST_TIMEOUT, allow_redirects=True)
@@ -43,7 +43,7 @@ def _get(url: str) -> requests.Response | None:
 
 # ── Type detection ────────────────────────────────────────────────────────────
 
-_TYPE_HINTS: list[tuple[str, list[str]]] = [
+_TYPE_HINTS: List[Tuple[str, List[str]]] = [
     ("tv",        ["tv", "television", "canal", "channel", "noticias-tv"]),
     ("radio",     ["radio", "fm", "am", "ondas", "onda"]),
     ("magazine",  ["magazine", "revista", "review", "weekly", "monthly"]),
@@ -67,7 +67,7 @@ def _detect_type(url: str, title: str, description: str) -> str:
 
 _LANG_RE = re.compile(r"^([a-z]{2})(?:[_-].*)?$", re.IGNORECASE)
 
-_TLD_LANG: dict[str, str] = {
+_TLD_LANG: Dict[str, str] = {
     "mx": "es", "ar": "es", "es": "es", "cl": "es", "co": "es",
     "pe": "es", "ve": "es", "br": "pt", "pt": "pt",
     "fr": "fr", "be": "fr", "de": "de", "at": "de", "ch": "de",
@@ -125,7 +125,7 @@ def _find_logo(soup: BeautifulSoup, base_url: str) -> str:
 
 # ── RSS feeds ─────────────────────────────────────────────────────────────────
 
-def _find_rss_feeds(soup: BeautifulSoup, base_url: str) -> list[str]:
+def _find_rss_feeds(soup: BeautifulSoup, base_url: str) -> List[str]:
     feeds = []
     for link in soup.find_all("link", type=re.compile(r"(rss|atom)\+xml", re.I)):
         href = link.get("href", "")
@@ -136,7 +136,7 @@ def _find_rss_feeds(soup: BeautifulSoup, base_url: str) -> list[str]:
 
 # ── Social links ──────────────────────────────────────────────────────────────
 
-_SOCIAL_PATTERNS: dict[str, str] = {
+_SOCIAL_PATTERNS: Dict[str, str] = {
     "twitter":   r"https?://(www\.)?(twitter|x)\.com/[\w_]+",
     "facebook":  r"https?://(www\.)?facebook\.com/[\w.]+",
     "instagram": r"https?://(www\.)?instagram\.com/[\w.]+",
@@ -145,8 +145,8 @@ _SOCIAL_PATTERNS: dict[str, str] = {
 }
 
 
-def _find_social(soup: BeautifulSoup) -> dict[str, str]:
-    social: dict[str, str] = {}
+def _find_social(soup: BeautifulSoup) -> Dict[str, str]:
+    social: Dict[str, str] = {}
     for a in soup.find_all("a", href=True):
         href = a["href"]
         for platform, pattern in _SOCIAL_PATTERNS.items():
@@ -169,7 +169,7 @@ def _canonical(soup: BeautifulSoup, fallback: str) -> str:
 
 # ── Main enrichment function ──────────────────────────────────────────────────
 
-def enrich(url: str, search_title: str = "", search_snippet: str = "") -> dict | None:
+def enrich(url: str, search_title: str = "", search_snippet: str = "") -> Optional[Dict]:
     """
     Fetch `url` and return an enriched metadata dict, or None if unreachable.
 

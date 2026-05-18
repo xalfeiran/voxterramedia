@@ -42,6 +42,7 @@ import argparse
 import logging
 import sys
 import time
+from typing import Optional
 from urllib.parse import urlparse
 
 # Add scout/ dir to path so sibling modules are importable directly
@@ -123,7 +124,7 @@ def run_job(
     urls_skipped = 0
     notes_parts  = []
 
-    national_city_id: int | None = None
+    national_city_id = None  # type: Optional[int]
 
     for result in searcher.search_all_queries(
         queries, num_per_query=max_results, delay=delay

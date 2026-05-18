@@ -11,7 +11,7 @@ Each backend returns a list of dicts:
 
 import logging
 import time
-from typing import Generator
+from typing import Dict, Generator, List, Set
 
 import config
 
@@ -36,7 +36,7 @@ _QUERY_TEMPLATES = [
 ]
 
 # Country-code → ccTLD map (top 80 countries by coverage)
-_CC_TLD: dict[str, str] = {
+_CC_TLD: Dict[str, str] = {
     "MX": "com.mx", "AR": "com.ar", "BR": "com.br", "CL": "cl",
     "CO": "com.co", "PE": "com.pe", "VE": "com.ve", "EC": "com.ec",
     "BO": "com.bo", "PY": "com.py", "UY": "com.uy", "CR": "co.cr",
@@ -61,7 +61,7 @@ _CC_TLD: dict[str, str] = {
 }
 
 
-def build_queries(country_name: str, country_code: str) -> list[str]:
+def build_queries(country_name: str, country_code: str) -> List[str]:
     """Return a list of search query strings for a given country."""
     tld = _CC_TLD.get(country_code.upper(), "")
     queries = []
@@ -76,7 +76,7 @@ def build_queries(country_name: str, country_code: str) -> list[str]:
 
 # ── SerpAPI backend ───────────────────────────────────────────────────────────
 
-def _search_serpapi(query: str, num: int = 10) -> list[dict]:
+def _search_serpapi(query: str, num: int = 10) -> List[Dict]:
     try:
         from serpapi import GoogleSearch  # type: ignore
     except ImportError:
@@ -108,36 +108,59 @@ def _search_serpapi(query: str, num: int = 10) -> list[dict]:
 
 
 # ── DuckDuckGo fallback ───────────────────────────────────────────────────────
+# Supports both API shapes:
+#   v2.x  (Python 3.6 compatible) — uses ddg() function
+#   v3.x+ (Python 3.8+)           — uses DDGS class with context manager
 
-def _search_ddg(query: str, num: int = 10) -> list[dict]:
+def _search_ddg(query: str, num: int = 10) -> List[Dict]:
+    # Try v3+ DDGS class first (ddgs package or duckduckgo-search >= 3)
     try:
-        from ddgs import DDGS  # type: ignore  (pip install ddgs)
-    except ImportError:
         try:
-            from duckduckgo_search import DDGS  # type: ignore  (legacy name)
+            from ddgs import DDGS  # type: ignore
         except ImportError:
-            log.error(
-                "ddgs package not installed. Run: pip install ddgs"
-            )
-            return []
+            from duckduckgo_search import DDGS  # type: ignore  # noqa
 
-    results = []
-    try:
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=num):
+        results = []
+        with DDGS() as ddgs_client:
+            for r in ddgs_client.text(query, max_results=num):
                 results.append({
                     "url":     r.get("href", ""),
                     "title":   r.get("title", ""),
                     "snippet": r.get("body", ""),
                 })
+        return results
+
+    except ImportError:
+        pass  # fall through to v2 API below
     except Exception as exc:
-        log.warning("DDG error: %s", exc)
-    return results
+        log.warning("DDG v3 error: %s", exc)
+        return []
+
+    # Fall back to duckduckgo-search v2 API (ddg() function, Python 3.6 safe)
+    try:
+        from duckduckgo_search import ddg  # type: ignore
+    except ImportError:
+        log.error("No DDG package found. Run: pip install duckduckgo-search==2.0.2")
+        return []
+
+    try:
+        raw = ddg(query, max_results=num) or []
+        return [
+            {
+                "url":     r.get("href", ""),
+                "title":   r.get("title", ""),
+                "snippet": r.get("body", ""),
+            }
+            for r in raw
+        ]
+    except Exception as exc:
+        log.warning("DDG v2 error: %s", exc)
+        return []
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def search(query: str, num: int = 10) -> list[dict]:
+def search(query: str, num: int = 10) -> List[Dict]:
     """
     Run a search and return a deduplicated list of result dicts.
     Uses SerpAPI if configured, otherwise DuckDuckGo.
@@ -150,7 +173,7 @@ def search(query: str, num: int = 10) -> list[dict]:
         results = _search_ddg(query, num)
 
     # Deduplicate by URL
-    seen: set[str] = set()
+    seen: Set[str] = set()
     unique = []
     for r in results:
         url = r.get("url", "").strip().rstrip("/")
@@ -162,15 +185,15 @@ def search(query: str, num: int = 10) -> list[dict]:
 
 
 def search_all_queries(
-    queries: list[str],
+    queries: List[str],
     num_per_query: int = 10,
     delay: float = 1.5,
-) -> Generator[dict, None, None]:
+) -> Generator[Dict, None, None]:
     """
     Iterate over multiple query strings, yielding unique result dicts.
     Applies a polite delay between requests.
     """
-    seen_urls: set[str] = set()
+    seen_urls: Set[str] = set()
     for query in queries:
         for result in search(query, num=num_per_query):
             url = result["url"]
