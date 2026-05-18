@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { Search, Globe, Filter, Menu, X, ChevronLeft } from 'lucide-react'
+import { Search, Globe, Filter, Menu, ChevronLeft } from 'lucide-react'
 import { useMapOutlets } from '@/api/queries'
 import { useFilterStore } from '@/stores/filterStore'
 import { COUNTRY_COLORS, COUNTRY_NAMES, TYPE_LABELS, formatUrl } from '@/lib/utils'
@@ -58,8 +58,6 @@ export default function ExplorePage() {
     // Auto-close sidebar on mobile after selecting an outlet
     if (window.innerWidth < 768) setSidebarOpen(false)
   }, [])
-
-  const isMobile = () => window.innerWidth < 768
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden relative">
