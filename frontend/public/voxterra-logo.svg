@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 96" role="img">
+  <title>VoxTerra.media</title>
+  <desc>Globe with broadcast signal arcs and VoxTerra .media wordmark</desc>
+
+  <defs>
+    <clipPath id="globe-clip">
+      <circle cx="48" cy="48" r="40"/>
+    </clipPath>
+  </defs>
+
+  <!-- Atmosphere glow rings -->
+  <circle cx="48" cy="48" r="44" fill="none" stroke="#22d3ee" stroke-width="0.8" opacity="0.10"/>
+  <circle cx="48" cy="48" r="42" fill="none" stroke="#22d3ee" stroke-width="0.5" opacity="0.06"/>
+
+  <!-- Globe body -->
+  <circle cx="48" cy="48" r="40" fill="#060d1c" stroke="#1e3a8a" stroke-width="1.5"/>
+
+  <!-- Globe grid (clipped) -->
+  <g clip-path="url(#globe-clip)" fill="none">
+    <line x1="8"  y1="30" x2="88" y2="30" stroke="#1e3a8a" stroke-width="0.8" opacity="0.80"/>
+    <line x1="8"  y1="48" x2="88" y2="48" stroke="#2563eb" stroke-width="1.0" opacity="0.70"/>
+    <line x1="8"  y1="66" x2="88" y2="66" stroke="#1e3a8a" stroke-width="0.8" opacity="0.80"/>
+    <ellipse cx="48" cy="48" rx="14" ry="40" stroke="#1e3a8a" stroke-width="0.8" opacity="0.70"/>
+    <ellipse cx="48" cy="48" rx="28" ry="40" stroke="#1e3a8a" stroke-width="0.8" opacity="0.70"/>
+    <line x1="48" y1="8"  x2="48" y2="88" stroke="#1e3a8a" stroke-width="0.8" opacity="0.70"/>
+  </g>
+
+  <!-- Globe border cap -->
+  <circle cx="48" cy="48" r="40" fill="none" stroke="#1e3a8a" stroke-width="1.5"/>
+
+  <!-- Broadcast origin dot -->
+  <circle cx="88" cy="48" r="3" fill="#22d3ee" opacity="0.95"/>
+
+  <!-- Broadcast arcs -->
+  <g fill="none" stroke="#22d3ee" stroke-linecap="round">
+    <path d="M88,38 A10,10 0 0,1 88,58"  stroke-width="2.8" opacity="1.00"/>
+    <path d="M88,31 A17,17 0 0,1 88,65"  stroke-width="2.0" opacity="0.60"/>
+    <path d="M88,24 A24,24 0 0,1 88,72"  stroke-width="1.3" opacity="0.28"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <tspan x="116" y="61" font-size="38" font-weight="200" fill="#22d3ee" letter-spacing="-1">Vox</tspan><tspan font-size="38" font-weight="800" fill="#ffffff" letter-spacing="-1">Terra</tspan>
+  </text>
+  <text x="117" y="80" font-family="system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"
+        font-size="11.5" font-weight="400" fill="#334155" letter-spacing="5">.media</text>
+</svg>
