@@ -53,6 +53,11 @@ class ScoutRun extends Command
             return self::FAILURE;
         }
 
+        // Auto-install Python dependencies if needed
+        if (!$this->ensureDepsInstalled($pythonBin, $scriptPath)) {
+            return self::FAILURE;
+        }
+
         $cmd = $this->buildCommand($pythonBin, $scriptPath);
 
         $this->info("▶  Starting VoxTerra Scout Bot");
@@ -118,6 +123,48 @@ class ScoutRun extends Command
         }
 
         return $cmd;
+    }
+
+    private function ensureDepsInstalled(string $pythonBin, string $scriptPath): bool
+    {
+        $requirementsFile = dirname($scriptPath) . '/requirements.txt';
+
+        if (!file_exists($requirementsFile)) {
+            $this->warn("requirements.txt not found at: {$requirementsFile} — skipping dep check.");
+            return true;
+        }
+
+        // Quick check: try importing the first critical package
+        $check = new Process([$pythonBin, '-c', 'import dotenv, pymysql, bs4, requests']);
+        $check->run();
+
+        if ($check->isSuccessful()) {
+            return true; // all good, nothing to install
+        }
+
+        $this->line("📦  Installing Python dependencies from requirements.txt...");
+
+        $pip = new Process(
+            [$pythonBin, '-m', 'pip', 'install', '-r', $requirementsFile, '--quiet'],
+            cwd: dirname($scriptPath),
+            timeout: 120,
+        );
+
+        $pip->run(function (string $type, string $output): void {
+            if (trim($output)) {
+                $this->line('   ' . trim($output));
+            }
+        });
+
+        if (!$pip->isSuccessful()) {
+            $this->error("pip install failed:\n" . $pip->getErrorOutput());
+            $this->line("Run manually:  pip install -r " . $requirementsFile);
+            return false;
+        }
+
+        $this->info("✅  Dependencies installed.");
+        $this->newLine();
+        return true;
     }
 
     private function resolvePython(): ?string
