@@ -1,9 +1,12 @@
 export type CountryCode = 'CA' | 'US' | 'MX'
 export type MediaType = 'national' | 'newspaper' | 'digital' | 'tv' | 'radio' | 'magazine'
-export type Language = 'en' | 'es' | 'fr'
+export type Language =
+  | 'en' | 'es' | 'fr' | 'de' | 'pt' | 'ar' | 'zh' | 'ja' | 'ko' | 'ru'
+  | 'hi' | 'it' | 'nl' | 'pl' | 'sv' | 'tr' | 'fa' | 'he' | 'id' | 'ms'
+  | 'th' | 'vi' | 'uk' | 'ro' | 'hu'
 
 export interface Country {
-  code: CountryCode
+  code: string
   name: string
   name_es: string
   slug: string
@@ -61,7 +64,7 @@ export interface MapOutlet {
   is_featured: boolean
   lat: number
   lon: number
-  country: CountryCode
+  country: string   // worldwide — not limited to CA/US/MX
   city: string
   region: string
 }
@@ -82,9 +85,9 @@ export interface PaginatedResponse<T> {
 
 export interface Stats {
   total: number
-  by_country: { code: CountryCode; name: string; name_es: string; emoji: string; outlets: number }[]
+  by_country: { code: string; name: string; name_es: string; emoji: string; outlets: number }[]
   by_type: Record<MediaType, number>
-  by_language: Record<Language, number>
+  by_language: Partial<Record<Language, number>>
 }
 
 export interface FilterState {

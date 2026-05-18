@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight, Globe } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useCountry, useMediaOutlets } from '@/api/queries'
 import { TYPE_LABELS, COUNTRY_COLORS, formatUrl } from '@/lib/utils'
 import type { CountryCode, MediaType } from '@/types'

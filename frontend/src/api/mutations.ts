@@ -21,7 +21,7 @@ export const useUpdateOutlet = () => {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<MediaOutlet> }) =>
       client.put(`/admin/media-outlets/${id}`, data).then(r => r.data.data),
-    onSuccess: (_data, { id }) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['media-outlets'] })
       qc.invalidateQueries({ queryKey: ['media-outlet'] })
       qc.invalidateQueries({ queryKey: ['stats'] })
@@ -46,7 +46,7 @@ export const useToggleFeatured = () => {
   return useMutation({
     mutationFn: (id: number) =>
       client.post(`/admin/media-outlets/${id}/toggle-featured`).then(r => r.data.data),
-    onMutate: async (id) => {
+    onMutate: async (_id) => {
       await qc.cancelQueries({ queryKey: ['media-outlets'] })
       const prev = qc.getQueryData(['media-outlets'])
       return { prev }

@@ -7,19 +7,21 @@ import { ChevronLeft, Save, AlertCircle } from 'lucide-react'
 import { useMediaOutlet } from '@/api/queries'
 import { useCreateOutlet, useUpdateOutlet } from '@/api/mutations'
 
+const emptyToUndefined = (v: unknown) => (v === '' || v === null ? undefined : v)
+
 const schema = z.object({
   name:         z.string().min(2, 'Name is required'),
   city_id:      z.coerce.number().positive('City is required'),
   url:          z.string().url('Must be a valid URL'),
   type:         z.enum(['national','newspaper','digital','tv','radio','magazine']),
-  language:     z.enum(['en','es','fr']),
+  language:     z.enum(['en','es','fr','de','pt','ar','zh','ja','ko','ru','hi','it','nl','pl','sv','tr','fa','he','id','ms','th','vi','uk','ro','hu']),
   description:  z.string().optional(),
-  logo_url:     z.string().url('Must be a valid URL').optional().or(z.literal('')),
-  founded_year: z.coerce.number().min(1600).max(2100).optional().or(z.literal('')),
+  logo_url:     z.preprocess(emptyToUndefined, z.string().url('Must be a valid URL').optional()),
+  founded_year: z.preprocess(emptyToUndefined, z.coerce.number().min(1600).max(2100).optional()),
   is_active:    z.boolean().default(true),
   is_featured:  z.boolean().default(false),
-  latitude:     z.coerce.number().min(-90).max(90).optional().or(z.literal('')),
-  longitude:    z.coerce.number().min(-180).max(180).optional().or(z.literal('')),
+  latitude:     z.preprocess(emptyToUndefined, z.coerce.number().min(-90).max(90).optional()),
+  longitude:    z.preprocess(emptyToUndefined, z.coerce.number().min(-180).max(180).optional()),
 })
 
 type FormData = z.infer<typeof schema>
@@ -76,12 +78,12 @@ export default function OutletFormPage() {
         type:         outlet.type,
         language:     outlet.language,
         description:  outlet.description ?? '',
-        logo_url:     outlet.logo_url ?? '',
-        founded_year: outlet.founded_year ?? '',
+        logo_url:     outlet.logo_url,
+        founded_year: outlet.founded_year,
         is_active:    outlet.is_active,
         is_featured:  outlet.is_featured,
-        latitude:     outlet.latitude ?? '',
-        longitude:    outlet.longitude ?? '',
+        latitude:     outlet.latitude,
+        longitude:    outlet.longitude,
       })
     }
   }, [outlet, reset])
@@ -142,6 +144,28 @@ export default function OutletFormPage() {
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
                 <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="pt">Portuguese</option>
+                <option value="ar">Arabic</option>
+                <option value="zh">Chinese</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="ru">Russian</option>
+                <option value="hi">Hindi</option>
+                <option value="it">Italian</option>
+                <option value="nl">Dutch</option>
+                <option value="pl">Polish</option>
+                <option value="sv">Swedish</option>
+                <option value="tr">Turkish</option>
+                <option value="fa">Persian</option>
+                <option value="he">Hebrew</option>
+                <option value="id">Indonesian</option>
+                <option value="ms">Malay</option>
+                <option value="th">Thai</option>
+                <option value="vi">Vietnamese</option>
+                <option value="uk">Ukrainian</option>
+                <option value="ro">Romanian</option>
+                <option value="hu">Hungarian</option>
               </Select>
               <FieldError message={errors.language?.message} />
             </div>

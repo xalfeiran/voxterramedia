@@ -88,7 +88,7 @@ export default function BotStatusPanel() {
                     ? 'border-slate-600 bg-slate-700/40'
                     : 'border-slate-700/50 bg-slate-800/50 hover:border-slate-600 hover:bg-slate-800'
                 }`}
-                style={isActive ? { ringColor: bot.color } : {}}
+                style={isActive ? { outline: `1px solid ${bot.color}55` } : {}}
               >
                 <div className="flex items-center gap-2">
                   {/* Status dot */}

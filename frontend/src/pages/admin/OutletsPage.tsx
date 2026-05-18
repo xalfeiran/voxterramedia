@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { useMediaOutlets } from '@/api/queries'
 import { useDeleteOutlet, useToggleFeatured } from '@/api/mutations'
-import { TYPE_LABELS, COUNTRY_COLORS, cn } from '@/lib/utils'
+import { TYPE_LABELS, COUNTRY_COLORS } from '@/lib/utils'
 import type { CountryCode, MediaType } from '@/types'
 
 export default function OutletsPage() {

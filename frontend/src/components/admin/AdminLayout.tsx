@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Globe, Newspaper, BarChart3, LogOut, Settings,
-  ChevronRight, Users, Upload, Map,
+  Globe, Newspaper, BarChart3, LogOut,
+  Users, Upload, Map,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'

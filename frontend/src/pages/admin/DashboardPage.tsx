@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const countryBar = (stats?.by_country ?? []).map(c => ({
     name: c.name,
     outlets: c.outlets,
-    fill: COUNTRY_COLORS[c.code] ?? '#888',
+    fill: (COUNTRY_COLORS as Record<string, string>)[c.code] ?? '#888',
   }))
 
   const typePie = Object.entries(stats?.by_type ?? {}).map(([type, count]) => ({

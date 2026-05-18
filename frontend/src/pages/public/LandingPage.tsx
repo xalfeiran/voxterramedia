@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Globe, Newspaper, Radio, Tv, MapPin, ChevronRight, ExternalLink, Star, GitBranch, Send, CheckCircle2 } from 'lucide-react'
 import { useStats } from '@/api/queries'
-import type { Stats } from '@/types'
 import WorldMapBackground from '@/components/WorldMapBackground'
 
 /**
