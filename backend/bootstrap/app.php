@@ -24,9 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Console\Commands\ScoutRun::class,
     ])
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
-        // Run 3 random-country scout jobs every day at 03:00 AM
-        // Uncomment (and adjust) once you have the Python deps installed:
-        // $schedule->command('scout:run --jobs=3')->dailyAt('03:00');
+        // Scout one random country every 10 minutes, up to 10 URLs per run.
+        // Runs are skipped automatically if a previous run is still in progress.
+        $schedule->command('scout:run --jobs=1 --max=10 --delay=1.5')
+                 ->everyTenMinutes()
+                 ->withoutOverlapping(5)   // skip if still running, release lock after 5 min
+                 ->runInBackground()
+                 ->appendOutputTo(base_path('../scout/scout.log'));
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(fn($request) =>
