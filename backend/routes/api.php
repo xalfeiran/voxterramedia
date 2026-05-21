@@ -26,9 +26,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/regions',                [RegionController::class, 'index']);
         Route::get('/cities',                 [CityController::class, 'index']);
 
-        Route::get('/media-outlets/map',      [MediaOutletController::class, 'map']);
-        Route::get('/media-outlets',          [MediaOutletController::class, 'index']);
-        Route::get('/media-outlets/{slug}',   [MediaOutletController::class, 'show']);
+        Route::get('/media-outlets/map',           [MediaOutletController::class, 'map']);
+        Route::get('/media-outlets',               [MediaOutletController::class, 'index']);
+        Route::get('/media-outlets/{slug}/feed',   [MediaOutletController::class, 'feed']);
+        Route::get('/media-outlets/{slug}',        [MediaOutletController::class, 'show']);
 
         Route::get('/stats',                  [StatsController::class, 'index']);
     });
