@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import client from './client'
-import type { Country, MapOutlet, MediaOutlet, PaginatedResponse, Stats } from '@/types'
+import type { Country, MapOutlet, MediaOutlet, PaginatedResponse, RssFeedItem, Stats } from '@/types'
 
 // ── Countries ──────────────────────────────────────────────────────────────
 export const useCountries = () =>
@@ -52,6 +52,18 @@ export const useMediaOutlet = (slug: string) =>
       return data.data
     },
     enabled: !!slug,
+  })
+
+// ── RSS feed proxy ─────────────────────────────────────────────────────────
+export const useRssFeed = (slug: string, enabled = true) =>
+  useQuery({
+    queryKey: ['rss-feed', slug],
+    queryFn: async () => {
+      const { data } = await client.get<{ data: RssFeedItem[] }>(`/media-outlets/${slug}/feed`)
+      return data.data
+    },
+    enabled: !!slug && enabled,
+    staleTime: 1000 * 60 * 15, // 15 min
   })
 
 // ── Stats ──────────────────────────────────────────────────────────────────

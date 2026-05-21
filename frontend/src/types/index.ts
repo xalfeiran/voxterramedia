@@ -93,6 +93,14 @@ export interface Stats {
   by_language: Partial<Record<Language, number>>
 }
 
+export interface RssFeedItem {
+  title: string
+  link: string
+  description: string
+  pub_date: string
+  image: string | null
+}
+
 export interface FilterState {
   country: CountryCode | 'all'
   type: MediaType | ''

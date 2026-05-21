@@ -235,7 +235,7 @@ function CountryCard({ code, emoji, name, outlets, color, maxOutlets }: {
     >
       <div className="text-4xl mb-4">{emoji}</div>
       <h3 className="text-lg font-semibold text-white mb-1">{name}</h3>
-      <p className="text-sm text-slate-400 mb-4">{outlets} media outlets</p>
+      <p className="text-sm text-slate-400 mb-4">{outlets} media outlet{outlets !== 1 ? 's' : ''}</p>
       <div className="w-full bg-slate-800 rounded-full h-1.5">
         <div
           className="h-1.5 rounded-full transition-all"
@@ -247,6 +247,19 @@ function CountryCard({ code, emoji, name, outlets, color, maxOutlets }: {
       </p>
     </Link>
   )
+}
+
+// Deterministic accent color for countries not in COUNTRY_META
+const PALETTE = [
+  '#3b82f6','#10b981','#ef4444','#6366f1','#f59e0b','#8b5cf6',
+  '#22c55e','#f97316','#06b6d4','#ec4899','#a3e635','#e11d48',
+  '#14b8a6','#d946ef','#f43f5e','#84cc16','#0ea5e9','#fb923c',
+]
+function colorForCode(code: string, meta: Record<string, { color: string }>): string {
+  if (meta[code]) return meta[code].color
+  // hash code letters to pick a stable palette color
+  const n = code.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  return PALETTE[n % PALETTE.length]
 }
 
 // ── Featured outlet card ─────────────────────────────────────────────────
@@ -295,7 +308,7 @@ function FeaturedCard({ outlet }: { outlet: FeaturedOutlet }) {
 
 // ── Main landing page ─────────────────────────────────────────────────────
 export default function LandingPage() {
-  const { data: stats } = useStats()
+  const { data: stats, isLoading: statsLoading } = useStats()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useSeo({
@@ -304,43 +317,30 @@ export default function LandingPage() {
     canonical  : 'https://voxterra.media',
   })
 
-  const COUNTRY_META: Record<string, { emoji: string; color: string; fallback: number }> = {
-    US: { emoji: '🇺🇸', color: '#3b82f6', fallback: 28 },
-    MX: { emoji: '🇲🇽', color: '#10b981', fallback: 24 },
-    CA: { emoji: '🇨🇦', color: '#ef4444', fallback: 14 },
-    GB: { emoji: '🇬🇧', color: '#6366f1', fallback: 10 },
-    FR: { emoji: '🇫🇷', color: '#f59e0b', fallback: 8  },
-    DE: { emoji: '🇩🇪', color: '#8b5cf6', fallback: 7  },
-    BR: { emoji: '🇧🇷', color: '#22c55e', fallback: 6  },
-    ES: { emoji: '🇪🇸', color: '#f97316', fallback: 6  },
-    AR: { emoji: '🇦🇷', color: '#06b6d4', fallback: 5  },
-    IN: { emoji: '🇮🇳', color: '#ec4899', fallback: 5  },
-    AU: { emoji: '🇦🇺', color: '#a3e635', fallback: 4  },
-    JP: { emoji: '🇯🇵', color: '#e11d48', fallback: 4  },
+  // Accent colors for well-known country codes; others get a generated color
+  const COUNTRY_META: Record<string, { color: string }> = {
+    US: { color: '#3b82f6' }, MX: { color: '#10b981' }, CA: { color: '#ef4444' },
+    GB: { color: '#6366f1' }, FR: { color: '#f59e0b' }, DE: { color: '#8b5cf6' },
+    BR: { color: '#22c55e' }, ES: { color: '#f97316' }, AR: { color: '#06b6d4' },
+    IN: { color: '#ec4899' }, AU: { color: '#a3e635' }, JP: { color: '#e11d48' },
+    IT: { color: '#14b8a6' }, CN: { color: '#d946ef' }, RU: { color: '#f43f5e' },
+    KR: { color: '#84cc16' }, NL: { color: '#0ea5e9' }, PL: { color: '#fb923c' },
+    QA: { color: '#8b5cf6' }, ZA: { color: '#22d3ee' },
   }
 
-  // Build country cards: prefer live stats, fall back to meta defaults
-  const countryData = stats?.by_country?.length
-    ? stats.by_country
-        .filter(c => COUNTRY_META[c.code])
-        .sort((a, b) => b.outlets - a.outlets)
-        .slice(0, 6)
-        .map(c => ({
-          code: c.code,
-          name: c.name ?? c.code,
-          emoji: COUNTRY_META[c.code].emoji,
-          color: COUNTRY_META[c.code].color,
-          outlets: c.outlets,
-        }))
-    : Object.entries(COUNTRY_META).slice(0, 6).map(([code, meta]) => ({
-        code,
-        name: { US:'United States', MX:'México', CA:'Canada', GB:'United Kingdom',
-                FR:'France', DE:'Germany', BR:'Brazil', ES:'Spain',
-                AR:'Argentina', IN:'India', AU:'Australia', JP:'Japan' }[code] ?? code,
-        emoji: meta.emoji,
-        color: meta.color,
-        outlets: meta.fallback,
-      }))
+  // All countries from live stats, sorted by outlet count
+  const sortedCountries = (stats?.by_country ?? [])
+    .slice()
+    .sort((a, b) => b.outlets - a.outlets)
+
+  // Build country cards: all DB countries, sorted by outlet count
+  const countryData = sortedCountries.map(c => ({
+    code:    c.code,
+    name:    c.name ?? c.code,
+    emoji:   c.emoji,
+    color:   colorForCode(c.code, COUNTRY_META),
+    outlets: c.outlets,
+  }))
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
@@ -442,20 +442,32 @@ export default function LandingPage() {
               <MapPin className="w-5 h-5" />
               Explore the Map
             </Link>
-            <Link
-              to="/countries/US"
+            <a
+              href="#countries"
               className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-8 py-4 rounded-xl transition-all border border-slate-700 text-base"
             >
               Browse by Country
               <ChevronRight className="w-4 h-4" />
-            </Link>
+            </a>
           </div>
 
-          {/* Country flags preview */}
+          {/* Country flags — live from DB, each links to its country page */}
           <div className="flex items-center justify-center flex-wrap gap-3 mt-10 text-2xl">
-            {['🇺🇸', '🇬🇧', '🇫🇷', '🇩🇪', '🇲🇽', '🇧🇷', '🇯🇵', '🇮🇳', '🇦🇺', '🇪🇸', '🇨🇦', '🇶🇦'].map(flag => (
-              <span key={flag} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2">{flag}</span>
-            ))}
+            {statsLoading
+              ? Array.from({ length: 12 }).map((_, i) => (
+                  <span key={i} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 w-14 h-10 animate-pulse" />
+                ))
+              : sortedCountries.slice(0, 20).map(c => (
+                  <Link
+                    key={c.code}
+                    to={`/countries/${c.code}`}
+                    title={`${c.name} — ${c.outlets} outlet${c.outlets !== 1 ? 's' : ''}`}
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 hover:border-slate-600 hover:-translate-y-0.5 transition-all"
+                  >
+                    {c.emoji}
+                  </Link>
+                ))
+            }
           </div>
         </div>
       </section>
@@ -471,16 +483,39 @@ export default function LandingPage() {
       </section>
 
       {/* ── Countries ───────────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
+      <section id="countries" className="max-w-6xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16 scroll-mt-20">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-white">Browse by Country</h2>
-          <p className="text-slate-400 mt-1">Click a country to see all its outlets grouped by region and city. Covering every continent.</p>
+          <p className="text-slate-400 mt-1">
+            {countryData.length > 0
+              ? `${countryData.length} countr${countryData.length !== 1 ? 'ies' : 'y'} in the catalog. Click any to see its outlets.`
+              : 'Click a country to see all its outlets grouped by region and city.'
+            }
+          </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {countryData.map(c => (
-            <CountryCard key={c.code} {...c} maxOutlets={Math.max(...countryData.map(d => d.outlets))} />
-          ))}
-        </div>
+
+        {statsLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse">
+                <div className="w-10 h-10 bg-slate-800 rounded-lg mb-4" />
+                <div className="h-4 bg-slate-800 rounded w-1/2 mb-2" />
+                <div className="h-3 bg-slate-800 rounded w-1/3 mb-4" />
+                <div className="h-1.5 bg-slate-800 rounded-full w-full" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {countryData.map(c => (
+              <CountryCard
+                key={c.code}
+                {...c}
+                maxOutlets={countryData[0]?.outlets ?? 1}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ── Featured ────────────────────────────────────────────────────── */}
