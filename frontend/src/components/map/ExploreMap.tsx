@@ -69,72 +69,62 @@ export default function ExploreMap({ outlets, onMarkerClick, flyTo }: Props) {
             }}
             eventHandlers={{ click: () => onMarkerClick?.(outlet) }}
           >
-            <Popup maxWidth={300} minWidth={270}>
-              {/* ── Color bar at top ──────────────────────────────────────── */}
-              <div
-                className="h-1 rounded-t-[13px]"
-                style={{ backgroundColor: accentColor }}
-              />
+            <Popup maxWidth={280} minWidth={240}>
+              {/* Accent bar */}
+              <div className="h-0.5 rounded-t-[13px]" style={{ backgroundColor: accentColor }} />
 
-              <div className="p-4">
-                {/* ── Header: flag + name ───────────────────────────────── */}
-                <div className="flex items-start gap-3 mb-3 pr-4">
-                  <span className="text-2xl leading-none mt-0.5 flex-none">
-                    {toFlagEmoji(outlet.country)}
-                  </span>
+              <div className="px-3 py-2.5">
+                {/* Row 1: flag + name + location */}
+                <div className="flex items-center gap-2 mb-2 pr-4">
+                  <span className="text-xl leading-none flex-none">{toFlagEmoji(outlet.country)}</span>
                   <div className="min-w-0">
-                    <p className="font-bold text-white text-base leading-tight">
-                      {outlet.name}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      📍 {outlet.city}{outlet.region && outlet.region !== outlet.city ? ` · ${outlet.region}` : ''}
+                    <p className="font-bold text-white text-sm leading-tight truncate">{outlet.name}</p>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {outlet.city}{outlet.region && outlet.region !== outlet.city ? ` · ${outlet.region}` : ''}
                     </p>
                   </div>
                 </div>
 
-                {/* ── Divider ────────────────────────────────────────────── */}
-                <div className="border-t border-slate-800 mb-3" />
-
-                {/* ── Badges ────────────────────────────────────────────── */}
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${typeColorClass}`}>
+                {/* Row 2: badges inline */}
+                <div className="flex flex-wrap gap-1 mb-2">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${typeColorClass}`}>
                     {TYPE_LABELS[outlet.type as MediaType] ?? outlet.type}
                   </span>
-                  <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
                     {LANG_LABELS[outlet.language] ?? outlet.language.toUpperCase()}
                   </span>
                   {outlet.has_rss && (
-                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-orange-900/60 text-orange-300">
-                      📡 RSS
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-orange-900/50 text-orange-300">
+                      RSS
                     </span>
                   )}
                   {outlet.is_featured && (
-                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-900/60 text-amber-300">
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300">
                       ★ Featured
                     </span>
                   )}
                 </div>
 
-                {/* ── URL ───────────────────────────────────────────────── */}
-                <p className="text-xs text-slate-500 mb-4 truncate" title={outlet.url}>
-                  🔗 {formatUrl(outlet.url)}
+                {/* Row 3: URL */}
+                <p className="text-[10px] text-slate-500 mb-2.5 truncate" title={outlet.url}>
+                  {formatUrl(outlet.url)}
                 </p>
 
-                {/* ── Action buttons ────────────────────────────────────── */}
-                <div className="flex gap-2">
+                {/* Row 4: buttons */}
+                <div className="flex gap-1.5">
                   <a
                     href={outlet.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 text-center text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition-colors"
+                    className="flex-1 text-center text-[11px] font-semibold bg-blue-600 hover:bg-blue-500 text-white px-2 py-1.5 rounded-md transition-colors"
                   >
-                    Visit site ↗
+                    Visit ↗
                   </a>
                   <a
                     href={`/outlets/${outlet.slug}`}
-                    className="flex-1 text-center text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors border border-slate-700"
+                    className="flex-1 text-center text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-md transition-colors border border-slate-700"
                   >
-                    View details
+                    Details
                   </a>
                 </div>
               </div>
