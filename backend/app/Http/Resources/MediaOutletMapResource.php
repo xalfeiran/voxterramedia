@@ -17,6 +17,7 @@ class MediaOutletMapResource extends JsonResource
             'type'        => $this->type,
             'language'    => $this->language,
             'is_featured' => $this->is_featured,
+            'has_rss'     => $this->has_rss,
             'lat'         => $this->effective_latitude,
             'lon'         => $this->effective_longitude,
             'country'     => $this->city?->region?->country?->code,

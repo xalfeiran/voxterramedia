@@ -27,6 +27,15 @@ Usage
   # Use only the first N query templates (faster)
   python scout.py --queries 3
 
+  # Review existing outlets and detect/update their RSS feeds
+  python scout.py --check-rss
+
+  # Check RSS only for a specific country
+  python scout.py --check-rss --country MX
+
+  # Check RSS for at most 50 outlets
+  python scout.py --check-rss --max 50
+
 Options
 -------
   --country CODE    ISO 2-letter country code to target
@@ -35,6 +44,7 @@ Options
   --queries N       Number of search query templates to use (default: all)
   --jobs N          Number of scout jobs to run sequentially (default: 1)
   --dry-run         Search + enrich but skip DB writes
+  --check-rss       Scan existing outlets in DB and update their RSS status
   --verbose         Debug-level logging
 """
 
@@ -200,6 +210,7 @@ def run_job(
             city_id = national_city_id
 
         # ── Upsert ────────────────────────────────────────────────────────────
+        rss_url = meta["rss_feeds"][0] if meta.get("rss_feeds") else None
         try:
             outlet_id, created = db.upsert_media_outlet(
                 conn,
@@ -213,6 +224,7 @@ def run_job(
                     "logo_url":    meta["logo_url"],
                     "latitude":    lat,
                     "longitude":   lon,
+                    "rss_url":     rss_url,
                 },
             )
             action = "created" if created else "updated"
@@ -239,6 +251,66 @@ def run_job(
     return {"found": urls_found, "saved": urls_saved, "skipped": urls_skipped}
 
 
+# ── RSS check job ─────────────────────────────────────────────────────────────
+
+def run_rss_check(
+    conn,
+    country_code: str = "",
+    max_results: int = 0,
+    delay: float = 1.5,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Iterate existing outlets in the DB and check/update their RSS status.
+    Re-fetches each outlet's homepage via the enricher and extracts RSS feeds.
+    """
+    outlets = db.get_outlets_for_rss_check(conn, country_code=country_code, limit=max_results)
+    total   = len(outlets)
+    found   = 0
+    updated = 0
+    failed  = 0
+
+    log.info(
+        "📡 RSS check — outlets to scan: %d | country: %s | dry_run: %s",
+        total, country_code or "all", dry_run,
+    )
+
+    for i, outlet in enumerate(outlets, 1):
+        log.info("  [%d/%d] %s", i, total, outlet["url"])
+        try:
+            meta = enricher.enrich(outlet["url"])
+            if meta is None:
+                log.warning("    ↳ could not enrich — skipping")
+                failed += 1
+                continue
+
+            rss_url = meta["rss_feeds"][0] if meta.get("rss_feeds") else None
+            prev_has_rss = bool(outlet.get("has_rss"))
+
+            if rss_url:
+                found += 1
+                log.info("    ↳ RSS found: %s", rss_url)
+            else:
+                log.debug("    ↳ no RSS found")
+
+            if not dry_run and (rss_url or prev_has_rss != bool(rss_url)):
+                db.update_outlet_rss(conn, outlet["id"], rss_url)
+                updated += 1
+
+        except Exception as exc:
+            log.error("    ↳ error for %s: %s", outlet["url"], exc)
+            failed += 1
+
+        if delay and i < total:
+            time.sleep(delay)
+
+    log.info(
+        "✅ RSS check done — scanned: %d | with RSS: %d | updated: %d | failed: %d",
+        total, found, updated, failed,
+    )
+    return {"scanned": total, "with_rss": found, "updated": updated, "failed": failed}
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
@@ -256,9 +328,11 @@ def parse_args() -> argparse.Namespace:
                    help="Limit to first N query templates (0 = all)")
     p.add_argument("--jobs",     metavar="N",     type=int, default=1,
                    help="Number of sequential jobs (each picks a random country)")
-    p.add_argument("--dry-run",  action="store_true",
+    p.add_argument("--dry-run",   action="store_true",
                    help="Search + enrich but skip DB writes")
-    p.add_argument("--verbose",  action="store_true")
+    p.add_argument("--check-rss", action="store_true",
+                   help="Scan existing outlets in DB and update their RSS status")
+    p.add_argument("--verbose",   action="store_true")
     return p.parse_args()
 
 
@@ -288,6 +362,19 @@ def main() -> None:
         else:
             log.error("DB connection required. Use --dry-run --country=XX to run without DB.")
             sys.exit(1)
+
+    # ── RSS check mode ────────────────────────────────────────────────────────
+    if args.check_rss:
+        run_rss_check(
+            conn=conn,
+            country_code=args.country or "",
+            max_results=args.max,
+            delay=args.delay,
+            dry_run=args.dry_run,
+        )
+        if conn:
+            conn.close()
+        return
 
     totals = {"found": 0, "saved": 0, "skipped": 0}
 

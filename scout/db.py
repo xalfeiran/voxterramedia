@@ -184,7 +184,7 @@ def upsert_media_outlet(
 
     `data` keys (all optional except url/name):
         url, name, slug, type, language, description,
-        logo_url, latitude, longitude
+        logo_url, latitude, longitude, rss_url, has_rss
 
     Returns (outlet_id, created: bool).
     """
@@ -201,33 +201,48 @@ def upsert_media_outlet(
     logo_url    = data.get("logo_url") or None
     lat         = data.get("latitude") or None
     lon         = data.get("longitude") or None
+    rss_url     = data.get("rss_url") or None
+    has_rss     = 1 if rss_url else 0
 
     with conn.cursor() as cur:
         cur.execute("SELECT id FROM media_outlets WHERE url = %s", (url,))
         existing = cur.fetchone()
 
         if existing:
-            cur.execute(
-                """
-                UPDATE media_outlets
-                SET name=%s, type=%s, language=%s, description=COALESCE(%s, description),
-                    logo_url=COALESCE(%s, logo_url), updated_at=NOW()
-                WHERE id=%s
-                """,
-                (name, outlet_type, language, description, logo_url, existing["id"]),
-            )
+            # Only overwrite rss_url if we have a new value (don't clear existing)
+            if rss_url:
+                cur.execute(
+                    """
+                    UPDATE media_outlets
+                    SET name=%s, type=%s, language=%s, description=COALESCE(%s, description),
+                        logo_url=COALESCE(%s, logo_url), rss_url=%s, has_rss=1, updated_at=NOW()
+                    WHERE id=%s
+                    """,
+                    (name, outlet_type, language, description, logo_url,
+                     rss_url, existing["id"]),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE media_outlets
+                    SET name=%s, type=%s, language=%s, description=COALESCE(%s, description),
+                        logo_url=COALESCE(%s, logo_url), updated_at=NOW()
+                    WHERE id=%s
+                    """,
+                    (name, outlet_type, language, description, logo_url, existing["id"]),
+                )
             conn.commit()
             return existing["id"], False
 
         cur.execute(
             """
             INSERT INTO media_outlets
-                (city_id, name, slug, url, type, language, description,
+                (city_id, name, slug, url, rss_url, has_rss, type, language, description,
                  logo_url, latitude, longitude, is_active, is_featured,
                  created_at, updated_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,0,NOW(),NOW())
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,0,NOW(),NOW())
             """,
-            (city_id, name, slug, url, outlet_type, language,
+            (city_id, name, slug, url, rss_url, has_rss, outlet_type, language,
              description, logo_url, lat, lon),
         )
         conn.commit()
@@ -248,6 +263,57 @@ def _unique_slug(conn, slug: str, exclude_url: str = "") -> str:
                 return slug
             slug = f"{base}-{n}"
             n += 1
+
+
+# ── RSS helpers ───────────────────────────────────────────────────────────────
+
+def get_outlets_for_rss_check(
+    conn: pymysql.connections.Connection,
+    country_code: str = "",
+    limit: int = 0,
+) -> List[Dict]:
+    """
+    Return active media outlets to check for RSS feeds.
+    Optionally scoped to a country code, and optionally capped to `limit` rows.
+    """
+    sql = """
+        SELECT mo.id, mo.url, mo.name, mo.has_rss
+        FROM media_outlets mo
+        JOIN cities c ON c.id = mo.city_id
+        JOIN regions r ON r.id = c.region_id
+        JOIN countries ct ON ct.id = r.country_id
+        WHERE mo.is_active = 1 AND mo.deleted_at IS NULL
+    """
+    params: list = []
+
+    if country_code:
+        sql += " AND ct.code = %s"
+        params.append(country_code.upper())
+
+    sql += " ORDER BY mo.id"
+
+    if limit:
+        sql += " LIMIT %s"
+        params.append(limit)
+
+    with conn.cursor() as cur:
+        cur.execute(sql, params or None)
+        return cur.fetchall()
+
+
+def update_outlet_rss(
+    conn: pymysql.connections.Connection,
+    outlet_id: int,
+    rss_url: Optional[str],
+) -> None:
+    """Set rss_url and has_rss for a single outlet."""
+    has_rss = 1 if rss_url else 0
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE media_outlets SET rss_url=%s, has_rss=%s, updated_at=NOW() WHERE id=%s",
+            (rss_url or None, has_rss, outlet_id),
+        )
+    conn.commit()
 
 
 # ── Scout run logging ─────────────────────────────────────────────────────────

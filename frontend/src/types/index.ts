@@ -38,6 +38,8 @@ export interface MediaOutlet {
   name: string
   slug: string
   url: string
+  rss_url?: string
+  has_rss: boolean
   type: MediaType
   language: Language
   description?: string
@@ -62,6 +64,7 @@ export interface MapOutlet {
   type: MediaType
   language: Language
   is_featured: boolean
+  has_rss: boolean
   lat: number
   lon: number
   country: string   // worldwide — not limited to CA/US/MX
@@ -95,4 +98,6 @@ export interface FilterState {
   type: MediaType | ''
   language: Language | ''
   search: string
+  city: string
+  hasRss: boolean
 }

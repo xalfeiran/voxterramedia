@@ -12,7 +12,7 @@ class MediaOutlet extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'city_id', 'name', 'slug', 'url', 'type', 'language',
+        'city_id', 'name', 'slug', 'url', 'rss_url', 'has_rss', 'type', 'language',
         'description', 'logo_url', 'founded_year',
         'is_active', 'is_featured', 'latitude', 'longitude',
     ];
@@ -20,6 +20,7 @@ class MediaOutlet extends Model
     protected $casts = [
         'is_active'    => 'boolean',
         'is_featured'  => 'boolean',
+        'has_rss'      => 'boolean',
         'latitude'     => 'float',
         'longitude'    => 'float',
         'founded_year' => 'integer',
@@ -80,6 +81,11 @@ class MediaOutlet extends Model
     public function scopeFeatured($query)
     {
         return $query->where('is_featured', true);
+    }
+
+    public function scopeHasRss($query)
+    {
+        return $query->where('has_rss', true);
     }
 
     public function scopeActive($query)

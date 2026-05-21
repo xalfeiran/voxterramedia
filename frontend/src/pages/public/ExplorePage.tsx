@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { Search, Globe, Filter, Menu, ChevronLeft } from 'lucide-react'
+import { Search, Globe, Filter, Menu, ChevronLeft, Rss, Building2 } from 'lucide-react'
 import { useMapOutlets } from '@/api/queries'
 import { useFilterStore } from '@/stores/filterStore'
 import { COUNTRY_COLORS, COUNTRY_NAMES, TYPE_LABELS, formatUrl } from '@/lib/utils'
@@ -10,7 +10,10 @@ import { useSeo } from '@/hooks/useSeo'
 
 export default function ExplorePage() {
   const { data: outlets = [], isLoading } = useMapOutlets()
-  const { country, type, search, setCountry, setType, setSearch } = useFilterStore()
+  const {
+    country, type, search, city, hasRss,
+    setCountry, setType, setSearch, setCity, setHasRss,
+  } = useFilterStore()
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number } | null>(null)
 
   // Sidebar open: default open on desktop, closed on mobile
@@ -36,6 +39,11 @@ export default function ExplorePage() {
     let result = outlets
     if (country !== 'all') result = result.filter(o => o.country === country)
     if (type) result = result.filter(o => o.type === type)
+    if (hasRss) result = result.filter(o => o.has_rss)
+    if (city) {
+      const q = city.toLowerCase()
+      result = result.filter(o => o.city.toLowerCase().includes(q))
+    }
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(o =>
@@ -45,7 +53,7 @@ export default function ExplorePage() {
       )
     }
     return result
-  }, [outlets, country, type, search])
+  }, [outlets, country, type, hasRss, city, search])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: outlets.length, CA: 0, US: 0, MX: 0 }
@@ -107,9 +115,21 @@ export default function ExplorePage() {
             <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
             <input
               type="text"
-              placeholder="Search outlets, cities..."
+              placeholder="Search outlets, regions..."
               value={search}
               onChange={e => setSearch(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-md pl-8 pr-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
+
+          {/* City filter */}
+          <div className="relative">
+            <Building2 className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Filter by city..."
+              value={city}
+              onChange={e => setCity(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-md pl-8 pr-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
@@ -144,6 +164,35 @@ export default function ExplorePage() {
               <option key={t} value={t}>{TYPE_LABELS[t]}</option>
             ))}
           </select>
+
+          {/* Quick-filter toggles: National media + RSS */}
+          <div className="flex gap-2">
+            {/* National media shortcut */}
+            <button
+              onClick={() => setType(type === 'national' ? '' : 'national')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex-1 justify-center ${
+                type === 'national'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-slate-700'
+              }`}
+            >
+              <Globe className="w-3 h-3" />
+              National
+            </button>
+
+            {/* RSS toggle */}
+            <button
+              onClick={() => setHasRss(!hasRss)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex-1 justify-center ${
+                hasRss
+                  ? 'bg-orange-600 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-slate-700'
+              }`}
+            >
+              <Rss className="w-3 h-3" />
+              RSS only
+            </button>
+          </div>
         </div>
 
         {/* Results list */}
@@ -182,15 +231,21 @@ export default function ExplorePage() {
                   className="w-2 h-2 rounded-full mt-1.5 flex-none"
                   style={{ backgroundColor: COUNTRY_COLORS[outlet.country as CountryCode] }}
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 w-full">
                   <p className="font-medium text-sm text-slate-100 truncate group-hover:text-white">
                     {outlet.name}
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">{outlet.city} · {outlet.region}</p>
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span className="text-xs bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">
                       {TYPE_LABELS[outlet.type]}
                     </span>
+                    {outlet.has_rss && (
+                      <span className="text-xs bg-orange-900/50 text-orange-400 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <Rss className="w-2.5 h-2.5" />
+                        RSS
+                      </span>
+                    )}
                     <a
                       href={outlet.url}
                       target="_blank"

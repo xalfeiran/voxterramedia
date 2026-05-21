@@ -14,6 +14,8 @@ class MediaOutletResource extends JsonResource
             'name'         => $this->name,
             'slug'         => $this->slug,
             'url'          => $this->url,
+            'rss_url'      => $this->rss_url,
+            'has_rss'      => $this->has_rss,
             'type'         => $this->type,
             'language'     => $this->language,
             'description'  => $this->description,

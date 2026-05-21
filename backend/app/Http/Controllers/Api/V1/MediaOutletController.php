@@ -38,6 +38,9 @@ class MediaOutletController extends Controller
         if ($request->filled('featured')) {
             $query->featured();
         }
+        if ($request->boolean('has_rss')) {
+            $query->hasRss();
+        }
         if ($request->filled('search')) {
             $term = '%' . $request->search . '%';
             $query->where(fn($q) =>
@@ -57,7 +60,7 @@ class MediaOutletController extends Controller
                          ->paginate($perPage);
 
         return MediaOutletResource::collection($outlets)->additional([
-            'meta' => ['filters_applied' => $request->only('country','region','city','type','language','search','featured','bbox')],
+            'meta' => ['filters_applied' => $request->only('country','region','city','type','language','search','featured','has_rss','bbox')],
         ]);
     }
 
@@ -65,7 +68,7 @@ class MediaOutletController extends Controller
     {
         $outlets = MediaOutlet::with(['city.region.country'])
             ->active()
-            ->get(['id', 'city_id', 'name', 'slug', 'url', 'type', 'language', 'latitude', 'longitude', 'is_featured']);
+            ->get(['id', 'city_id', 'name', 'slug', 'url', 'type', 'language', 'latitude', 'longitude', 'is_featured', 'has_rss']);
 
         return MediaOutletMapResource::collection($outlets);
     }
