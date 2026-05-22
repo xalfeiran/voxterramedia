@@ -18,11 +18,14 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call([
-            // North America (CA / US / MX)
+            // All ~195 countries first — so every ISO code is resolvable
+            AllCountriesSeeder::class,
+
+            // North America (CA / US / MX) — regions & cities
             GeographySeeder::class,
             MediaOutletSeeder::class,
 
-            // Worldwide — run after NA geography so city slugs are all loaded
+            // Worldwide regions & cities — run after NA geography
             WorldGeographySeeder::class,
             WorldMediaOutletSeeder::class,
         ]);

@@ -13,8 +13,8 @@ class GeographySeeder extends Seeder
     public function run(): void
     {
         // ── CANADA ──────────────────────────────────────────────────────────
-        $ca = Country::create([
-            'code' => 'CA', 'name' => 'Canada', 'name_es' => 'Canadá',
+        $ca = Country::firstOrCreate(['code' => 'CA'], [
+            'name' => 'Canada', 'name_es' => 'Canadá',
             'slug' => 'canada', 'flag_emoji' => '🇨🇦',
             'latitude' => 56.1304, 'longitude' => -106.3468, 'default_zoom' => 4,
         ]);
@@ -60,8 +60,8 @@ class GeographySeeder extends Seeder
         $halifax  = City::create(['region_id' => $novascotia->id,'name'=> 'Halifax',   'slug' => 'halifax',   'latitude' => 44.6488, 'longitude' => -63.5752]);
 
         // ── USA ─────────────────────────────────────────────────────────────
-        $us = Country::create([
-            'code' => 'US', 'name' => 'United States', 'name_es' => 'Estados Unidos',
+        $us = Country::firstOrCreate(['code' => 'US'], [
+            'name' => 'United States', 'name_es' => 'Estados Unidos',
             'slug' => 'united-states', 'flag_emoji' => '🇺🇸',
             'latitude' => 37.0902, 'longitude' => -95.7129, 'default_zoom' => 4,
         ]);
@@ -124,8 +124,8 @@ class GeographySeeder extends Seeder
         ];
 
         // ── MEXICO ───────────────────────────────────────────────────────────
-        $mx = Country::create([
-            'code' => 'MX', 'name' => 'Mexico', 'name_es' => 'México',
+        $mx = Country::firstOrCreate(['code' => 'MX'], [
+            'name' => 'Mexico', 'name_es' => 'México',
             'slug' => 'mexico', 'flag_emoji' => '🇲🇽',
             'latitude' => 23.6345, 'longitude' => -102.5528, 'default_zoom' => 5,
         ]);
