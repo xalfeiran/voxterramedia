@@ -102,7 +102,7 @@ export interface RssFeedItem {
 }
 
 export interface FilterState {
-  country: CountryCode | 'all'
+  country: string   // 'all' or any ISO 3166-1 alpha-2 country code
   type: MediaType | ''
   language: Language | ''
   search: string

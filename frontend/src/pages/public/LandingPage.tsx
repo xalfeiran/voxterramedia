@@ -434,7 +434,7 @@ export default function LandingPage() {
             organized by country, region, and city, with an interactive map.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 flex-wrap">
             <Link
               to="/explore"
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-4 rounded-xl transition-all hover:-translate-y-0.5 shadow-lg shadow-blue-500/25 text-base"
@@ -442,9 +442,16 @@ export default function LandingPage() {
               <MapPin className="w-5 h-5" />
               Explore the Map
             </Link>
+            <Link
+              to="/explore"
+              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-8 py-4 rounded-xl transition-all border border-slate-700 text-base"
+            >
+              <Globe className="w-5 h-5 text-cyan-400" />
+              Country Cloud
+            </Link>
             <a
               href="#countries"
-              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-8 py-4 rounded-xl transition-all border border-slate-700 text-base"
+              className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 font-medium px-4 py-4 transition-all text-base"
             >
               Browse by Country
               <ChevronRight className="w-4 h-4" />

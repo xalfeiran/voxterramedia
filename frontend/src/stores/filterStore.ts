@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import type { CountryCode, FilterState, Language, MediaType } from '@/types'
+import type { FilterState, Language, MediaType } from '@/types'
 
 interface FilterStore extends FilterState {
-  setCountry:  (country: CountryCode | 'all') => void
+  setCountry:  (country: string) => void
   setType:     (type: MediaType | '') => void
   setLanguage: (language: Language | '') => void
   setSearch:   (search: string) => void

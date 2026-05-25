@@ -1,20 +1,22 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Search, Globe, Filter, Menu, ChevronLeft, Rss, Building2 } from 'lucide-react'
 import { useMapOutlets } from '@/api/queries'
 import { useFilterStore } from '@/stores/filterStore'
-import { COUNTRY_COLORS, COUNTRY_NAMES, TYPE_LABELS, formatUrl } from '@/lib/utils'
+import { COUNTRY_COLORS, TYPE_LABELS, formatUrl } from '@/lib/utils'
 import type { CountryCode, MapOutlet, MediaType } from '@/types'
 import ExploreMap from '@/components/map/ExploreMap'
 import BotStatusPanel from '@/components/map/BotStatusPanel'
+import CountryCloud from '@/components/map/CountryCloud'
 import { useSeo } from '@/hooks/useSeo'
 
 export default function ExplorePage() {
   const { data: outlets = [], isLoading } = useMapOutlets()
   const {
     country, type, search, city, hasRss,
-    setCountry, setType, setSearch, setCity, setHasRss,
+    setType, setSearch, setCity, setHasRss,
   } = useFilterStore()
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number } | null>(null)
+  const resultsRef = useRef<HTMLDivElement | null>(null)
 
   // Sidebar open: default open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768)
@@ -54,12 +56,6 @@ export default function ExplorePage() {
     }
     return result
   }, [outlets, country, type, hasRss, city, search])
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { all: outlets.length, CA: 0, US: 0, MX: 0 }
-    outlets.forEach(o => { if (c[o.country] !== undefined) c[o.country]++ })
-    return c
-  }, [outlets])
 
   const handleItemClick = useCallback((outlet: MapOutlet) => {
     setFlyTo({ lat: outlet.lat, lon: outlet.lon })
@@ -139,24 +135,11 @@ export default function ExplorePage() {
             />
           </div>
 
-          {/* Country pills */}
-          <div className="flex flex-wrap gap-1.5">
-            {(['all', 'CA', 'US', 'MX'] as const).map(c => (
-              <button
-                key={c}
-                onClick={() => setCountry(c)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                  country === c
-                    ? 'text-white'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-                style={country === c ? { backgroundColor: c === 'all' ? '#3b82f6' : COUNTRY_COLORS[c as CountryCode] } : {}}
-              >
-                {c === 'all' ? 'All' : COUNTRY_NAMES[c as CountryCode]}
-                <span className="ml-1 opacity-70">({counts[c] ?? 0})</span>
-              </button>
-            ))}
-          </div>
+          {/* Country cloud */}
+          <CountryCloud
+            outlets={outlets}
+            onSelect={() => resultsRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          />
 
           {/* Type filter */}
           <select
@@ -201,7 +184,7 @@ export default function ExplorePage() {
         </div>
 
         {/* Results list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
+        <div ref={resultsRef} className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
           <p className="text-xs text-slate-500 mb-3 flex items-center gap-1">
             <Filter className="w-3 h-3" />
             {filtered.length} result{filtered.length !== 1 ? 's' : ''}
