@@ -403,7 +403,9 @@ export default function LandingPage() {
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <img src="/voxterra-logo.svg" alt="VoxTerra.media" className="h-8 sm:h-9 w-auto" />
+          <Link to="/" aria-label="VoxTerra.media — home">
+            <img src="/voxterra-logo.svg" alt="VoxTerra.media" className="h-8 sm:h-9 w-auto" />
+          </Link>
 
           {/* Desktop links */}
           <div className="hidden sm:flex items-center gap-6">

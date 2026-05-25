@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { Search, Globe, Filter, Menu, ChevronLeft, Rss, Building2 } from 'lucide-react'
 import { useMapOutlets } from '@/api/queries'
 import { useFilterStore } from '@/stores/filterStore'
@@ -98,17 +99,18 @@ export default function ExplorePage() {
       >
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <h1 className="text-base font-semibold text-white flex items-center gap-2">
-              <Globe className="w-4 h-4 text-blue-400" />
-              News Media Explorer
-            </h1>
+          <Link to="/" className="flex flex-col min-w-0 group" aria-label="Back to VoxTerra.media home">
+            <img
+              src="/voxterra-logo.svg"
+              alt="VoxTerra.media"
+              className="h-6 w-auto mb-0.5 opacity-90 group-hover:opacity-100 transition-opacity"
+            />
             <p className="text-xs text-slate-500 mt-0.5">Worldwide · {outlets.length} outlets</p>
-          </div>
+          </Link>
           {/* Close button — visible on all sizes when sidebar is open */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex-none"
             aria-label="Close sidebar"
           >
             <ChevronLeft className="w-4 h-4" />
