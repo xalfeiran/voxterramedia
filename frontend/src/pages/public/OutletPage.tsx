@@ -57,13 +57,23 @@ export default function OutletPage() {
     !isLoading && !!outlet?.has_rss
   )
 
+  const canonUrl = `https://voxterra.media/outlets/${slug}`
+
   useSeo({
     title      : outlet ? `${outlet.name} — ${outlet.country?.name ?? ''} Media` : 'Media Outlet',
     description: outlet
       ? (outlet.description ?? `${outlet.name} is a ${TYPE_LABELS[outlet.type as MediaType] ?? outlet.type} media outlet based in ${outlet.country?.name ?? ''}. Explore coverage, language, and contact details on VoxTerra.media.`)
       : 'Explore this media outlet on VoxTerra.media.',
-    canonical  : `https://voxterra.media/outlets/${slug}`,
+    canonical  : canonUrl,
     ogType     : 'article',
+    lang       : outlet?.language ?? 'en',
+    keywords   : outlet
+      ? `${outlet.name}, ${outlet.country?.name ?? ''} news, ${outlet.city?.name ?? ''} media, ${TYPE_LABELS[outlet.type as MediaType] ?? outlet.type}`
+      : undefined,
+    hreflangs  : [
+      { hreflang: outlet?.language ?? 'en', href: canonUrl },
+      { hreflang: 'x-default',              href: canonUrl },
+    ],
   })
 
   // JSON-LD structured data for NewsMediaOrganization

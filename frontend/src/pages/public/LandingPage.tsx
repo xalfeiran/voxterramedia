@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, FormEvent } from 'react'
+import { useEffect, useRef, useState, FormEvent, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Globe, Newspaper, Radio, Tv, MapPin, ChevronRight, ExternalLink, Star, GitBranch, Send, CheckCircle2, Menu, X } from 'lucide-react'
 import { useStats } from '@/api/queries'
@@ -315,7 +315,59 @@ export default function LandingPage() {
     title      : 'VoxTerra.media — Worldwide News Media Catalog',
     description: 'Explore an interactive map of news media outlets from every country. Search, filter, and discover thousands of newspapers, TV channels, radio stations, and digital media around the globe.',
     canonical  : 'https://voxterra.media',
+    keywords   : 'news media catalog, global media directory, newspapers worldwide, TV channels, radio stations, digital media, journalism resources, international press',
+    hreflangs  : [
+      { hreflang: 'en',        href: 'https://voxterra.media' },
+      { hreflang: 'es',        href: 'https://voxterra.media' },
+      { hreflang: 'x-default', href: 'https://voxterra.media' },
+    ],
   })
+
+  // ── JSON-LD: WebSite + Organization ─────────────────────────────────────
+  const totalOutlets = stats?.total ?? 0
+  const jsonLd = useMemo(() => ([
+    {
+      '@context'       : 'https://schema.org',
+      '@type'          : 'WebSite',
+      'name'           : 'VoxTerra.media',
+      'url'            : 'https://voxterra.media',
+      'description'    : 'Worldwide catalog of news media outlets — newspapers, TV, radio, and digital media from every country.',
+      'inLanguage'     : ['en', 'es'],
+      'potentialAction': {
+        '@type'       : 'SearchAction',
+        'target'      : {
+          '@type'      : 'EntryPoint',
+          'urlTemplate': 'https://voxterra.media/explore?search={search_term_string}',
+        },
+        'query-input' : 'required name=search_term_string',
+      },
+    },
+    {
+      '@context'   : 'https://schema.org',
+      '@type'      : 'Organization',
+      'name'       : 'VoxTerra.media',
+      'url'        : 'https://voxterra.media',
+      'logo'       : 'https://voxterra.media/voxterra-logo.svg',
+      'sameAs'     : ['https://mindware.com.mx'],
+      'description': `A worldwide catalog of ${totalOutlets} news media outlets organized by country, region, and city.`,
+      'founder'    : {
+        '@type': 'Organization',
+        'name' : 'Mindware',
+        'url'  : 'https://mindware.com.mx',
+      },
+    },
+  ]), [totalOutlets])
+
+  useEffect(() => {
+    const existing = document.getElementById('jsonld-landing')
+    if (existing) existing.remove()
+    const script   = document.createElement('script')
+    script.id      = 'jsonld-landing'
+    script.type    = 'application/ld+json'
+    script.text    = JSON.stringify(jsonLd)
+    document.head.appendChild(script)
+    return () => { script.remove() }
+  }, [jsonLd])
 
   // Accent colors for well-known country codes; others get a generated color
   const COUNTRY_META: Record<string, { color: string }> = {

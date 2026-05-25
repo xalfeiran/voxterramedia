@@ -35,6 +35,12 @@ export default function ExplorePage() {
     title      : 'Explore — Interactive World Media Map',
     description: 'Browse thousands of newspapers, TV channels, radio stations, and digital outlets on an interactive world map. Filter by country, type, or language.',
     canonical  : 'https://voxterra.media/explore',
+    keywords   : 'interactive media map, world news map, explore media outlets, global journalism map, news by country',
+    hreflangs  : [
+      { hreflang: 'en',        href: 'https://voxterra.media/explore' },
+      { hreflang: 'es',        href: 'https://voxterra.media/explore' },
+      { hreflang: 'x-default', href: 'https://voxterra.media/explore' },
+    ],
   })
 
   const filtered = useMemo(() => {

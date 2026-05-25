@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
+import { useEffect } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useCountry, useMediaOutlets } from '@/api/queries'
 import { TYPE_LABELS, COUNTRY_COLORS, formatUrl } from '@/lib/utils'
@@ -10,13 +11,58 @@ export default function CountryPage() {
   const { data: country, isLoading } = useCountry(code.toUpperCase())
   const { data: outletsData } = useMediaOutlets({ country: code.toUpperCase(), per_page: 100 })
 
+  const outlets     = outletsData?.data ?? []
+  const countryCode = code.toLowerCase()
+  const canonUrl    = `https://voxterra.media/countries/${countryCode}`
+
   useSeo({
     title      : country ? `${country.flag_emoji} ${country.name} — News Media Outlets` : 'Country Media Outlets',
     description: country
-      ? `Discover ${outletsData?.data?.length ?? ''} news media outlets in ${country.name}. Browse newspapers, TV channels, radio stations and digital media from ${country.name}.`
+      ? `Discover ${outlets.length || ''} news media outlets in ${country.name}. Browse newspapers, TV channels, radio stations and digital media from ${country.name}.`
       : 'Explore news media outlets by country on VoxTerra.media.',
-    canonical  : `https://voxterra.media/countries/${code.toLowerCase()}`,
+    canonical  : canonUrl,
+    keywords   : country ? `${country.name} news media, ${country.name} newspapers, ${country.name} TV channels, ${country.name} radio, ${country.name} journalism` : undefined,
+    hreflangs  : [
+      { hreflang: 'en',        href: canonUrl },
+      { hreflang: 'es',        href: canonUrl },
+      { hreflang: 'x-default', href: canonUrl },
+    ],
   })
+
+  // ── JSON-LD: CollectionPage + ItemList ────────────────────────────────────
+  useEffect(() => {
+    if (!country || outlets.length === 0) return
+
+    const existing = document.getElementById('jsonld-country')
+    if (existing) existing.remove()
+
+    const script   = document.createElement('script')
+    script.id      = 'jsonld-country'
+    script.type    = 'application/ld+json'
+    script.text    = JSON.stringify({
+      '@context'        : 'https://schema.org',
+      '@type'           : 'CollectionPage',
+      'name'            : `${country.name} — News Media Outlets`,
+      'url'             : canonUrl,
+      'description'     : `Directory of ${outlets.length} news media outlets in ${country.name}.`,
+      'inLanguage'      : 'en',
+      'about'           : { '@type': 'Country', 'name': country.name },
+      'mainEntity'      : {
+        '@type'          : 'ItemList',
+        'name'           : `News media in ${country.name}`,
+        'numberOfItems'  : outlets.length,
+        'itemListElement': outlets.slice(0, 50).map((outlet, idx) => ({
+          '@type'   : 'ListItem',
+          'position': idx + 1,
+          'name'    : outlet.name,
+          'url'     : `https://voxterra.media/outlets/${outlet.slug}`,
+        })),
+      },
+    })
+    document.head.appendChild(script)
+
+    return () => { script.remove() }
+  }, [country, outlets, canonUrl])
 
   if (isLoading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -30,7 +76,6 @@ export default function CountryPage() {
     </div>
   )
 
-  const outlets = outletsData?.data ?? []
   const countryColor = COUNTRY_COLORS[code.toUpperCase() as CountryCode] ?? '#3b82f6'
 
   return (

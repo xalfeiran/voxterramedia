@@ -68,7 +68,7 @@ class SitemapController extends Controller
         $perPage = 500;
 
         $outlets = MediaOutlet::where('is_active', true)
-            ->select('slug', 'updated_at')
+            ->select('slug', 'updated_at', 'language', 'logo_url', 'name')
             ->orderBy('id')
             ->forPage($page, $perPage)
             ->get();
