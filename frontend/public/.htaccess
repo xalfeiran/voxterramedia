@@ -1,9 +1,14 @@
 Options -MultiViews -Indexes
-RewriteEngine On
-RewriteBase /
 
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
 
-RewriteRule ^ /index.html [QSA,L]
+    # Pass through real files and directories untouched
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Send everything else to index.html so React Router can handle it
+    RewriteRule ^ index.html [QSA,L]
+</IfModule>
