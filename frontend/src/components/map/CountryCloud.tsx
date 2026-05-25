@@ -1,16 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
+import {
+  WordCloud,
+  AnimatedWordRenderer,
+  type WordCloudProps,
+  type FinalWordData,
+  type Word,
+  type WordRendererData,
+} from '@isoterik/react-word-cloud'
+import type { Ref } from 'react'
 import type { MapOutlet } from '@/types'
 import { useFilterStore } from '@/stores/filterStore'
 
-/** Convert ISO 3166-1 alpha-2 to flag emoji */
-function toFlagEmoji(code: string): string {
-  if (code.length !== 2) return '🌐'
-  return code.toUpperCase().replace(/./g, c =>
-    String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)
-  )
-}
-
-/** Stable accent color from a country code */
+// ── Palette ──────────────────────────────────────────────────────────────────
 const PALETTE = [
   '#3b82f6', '#10b981', '#ef4444', '#6366f1', '#f59e0b', '#8b5cf6',
   '#22c55e', '#f97316', '#06b6d4', '#ec4899', '#a3e635', '#e11d48',
@@ -23,43 +24,74 @@ function colorFor(code: string): string {
   return PALETTE[n % PALETTE.length]
 }
 
-/** Hex color → rgba string with given alpha (0–1) */
-function hex2rgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${alpha})`
-}
-
+// ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
-  /** All outlets (unfiltered) — used to compute per-country counts */
+  /** All outlets (unfiltered) to compute per-country counts */
   outlets: MapOutlet[]
-  /** Called after a country tag is clicked (e.g. to scroll results list to top) */
+  /** Called after a selection so the parent can scroll the results list */
   onSelect?: () => void
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function CountryCloud({ outlets, onSelect }: Props) {
   const { country: selected, setCountry } = useFilterStore()
 
-  /** Sorted country counts from all outlets */
-  const items = useMemo(() => {
+  // Build word list + track max for font scaling
+  const { words, maxCount } = useMemo(() => {
     const map = new Map<string, number>()
     outlets.forEach(o => map.set(o.country, (map.get(o.country) ?? 0) + 1))
-    return Array.from(map.entries())
-      .map(([code, count]) => ({ code, count }))
-      .sort((a, b) => b.count - a.count)
+    const entries = Array.from(map.entries())
+    const max = Math.max(...entries.map(([, c]) => c), 1)
+    return {
+      words: entries.map(([code, count]) => ({ text: code, value: count })),
+      maxCount: max,
+    }
   }, [outlets])
 
-  const maxCount = items[0]?.count ?? 1
+  // Font size: log scale 11 px → 46 px
+  const fontSize: WordCloudProps['fontSize'] = useCallback(
+    (word: Word) => {
+      const ratio = Math.log(word.value + 1) / Math.log(maxCount + 1)
+      return Math.round(11 + ratio * 35)
+    },
+    [maxCount],
+  )
 
-  function handleClick(code: string) {
-    setCountry(selected === code ? 'all' : code)
-    onSelect?.()
-  }
+  // Fill: full color for selected / "all", dimmed for others
+  const fill: WordCloudProps['fill'] = useCallback(
+    (word: Word) => {
+      const color = colorFor(word.text)
+      if (selected === 'all' || selected === word.text) return color
+      return color + '38' // ~22 % opacity — dim unselected words
+    },
+    [selected],
+  )
+
+  // Animated word renderer (entrance animation, stable ref)
+  const renderWord: WordCloudProps['renderWord'] = useCallback(
+    (data: WordRendererData, ref?: Ref<SVGTextElement>) => (
+      <AnimatedWordRenderer
+        ref={ref ?? null}
+        data={data}
+        animationDelay={(_w: Word, i: number) => i * 35}
+        textStyle={{ cursor: 'pointer' }}
+      />
+    ),
+    [],
+  )
+
+  // Click: toggle filter for the clicked country
+  const handleWordClick = useCallback(
+    (word: FinalWordData) => {
+      setCountry(selected === word.text ? 'all' : word.text)
+      onSelect?.()
+    },
+    [selected, setCountry, onSelect],
+  )
 
   return (
-    <div className="flex flex-wrap gap-1.5 items-center">
-      {/* "All" reset pill */}
+    <div className="space-y-1.5">
+      {/* "All" reset pill — sits above the cloud */}
       <button
         onClick={() => { setCountry('all'); onSelect?.() }}
         className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
@@ -68,46 +100,25 @@ export default function CountryCloud({ outlets, onSelect }: Props) {
             : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
         }`}
       >
-        All
+        All countries
       </button>
 
-      {items.map(({ code, count }) => {
-        const ratio = Math.log(count + 1) / Math.log(maxCount + 1)
-        const color  = colorFor(code)
-        const isSelected = selected === code
-
-        // Scale font-size 10 → 19 px and padding proportionally
-        const fs = Math.round(10 + ratio * 9)
-        const px = Math.round(6  + ratio * 5)
-        const py = Math.round(2  + ratio * 2)
-
-        return (
-          <button
-            key={code}
-            onClick={() => handleClick(code)}
-            title={`${code} — ${count} outlet${count !== 1 ? 's' : ''}`}
-            style={{
-              fontSize:        `${fs}px`,
-              paddingLeft:     `${px}px`,
-              paddingRight:    `${px}px`,
-              paddingTop:      `${py}px`,
-              paddingBottom:   `${py}px`,
-              color:           isSelected ? '#fff' : color,
-              backgroundColor: isSelected ? color : hex2rgba(color, 0.12),
-              border:          isSelected
-                ? 'none'
-                : `1px solid ${hex2rgba(color, 0.3)}`,
-              boxShadow:       isSelected
-                ? `0 0 8px ${hex2rgba(color, 0.4)}`
-                : 'none',
-            }}
-            className="rounded-full font-medium transition-all hover:opacity-90 leading-tight whitespace-nowrap"
-          >
-            {toFlagEmoji(code)}&nbsp;{code}
-            &nbsp;<span style={{ opacity: 0.65 }}>({count})</span>
-          </button>
-        )
-      })}
+      {/* Word cloud — horizontal layout, rectangular spiral for density */}
+      <WordCloud
+        words={words}
+        width={272}
+        height={220}
+        fontSize={fontSize}
+        fill={fill}
+        padding={4}
+        rotate={() => 0}
+        font="Inter, ui-sans-serif, system-ui, sans-serif"
+        fontWeight="700"
+        spiral="rectangular"
+        renderWord={renderWord}
+        onWordClick={handleWordClick}
+        svgProps={{ style: { overflow: 'visible' } }}
+      />
     </div>
   )
 }
