@@ -67,6 +67,11 @@ export default function ExplorePage() {
     if (window.innerWidth < 768) setSidebarOpen(false)
   }, [])
 
+  // Clicking a pin on the map should NOT zoom — just open the popup (handled by Leaflet)
+  const handleMarkerClick = useCallback((_outlet: MapOutlet) => {
+    // intentionally left empty: popup opens via Leaflet's built-in behavior
+  }, [])
+
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden relative">
 
@@ -281,7 +286,7 @@ export default function ExplorePage() {
           </button>
         )}
 
-        <ExploreMap outlets={filtered} onMarkerClick={handleItemClick} flyTo={flyTo} />
+        <ExploreMap outlets={filtered} onMarkerClick={handleMarkerClick} flyTo={flyTo} />
       </main>
     </div>
   )
