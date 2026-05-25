@@ -99,13 +99,13 @@ export default function ExplorePage() {
       >
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <Link to="/" className="flex flex-col min-w-0 group" aria-label="Back to VoxTerra.media home">
+          <Link to="/" className="flex flex-col min-w-0 flex-1 group" aria-label="Back to VoxTerra.media home">
             <img
               src="/voxterra-logo.svg"
               alt="VoxTerra.media"
-              className="h-6 w-auto mb-0.5 opacity-90 group-hover:opacity-100 transition-opacity"
+              className="w-full max-w-[180px] h-auto opacity-90 group-hover:opacity-100 transition-opacity"
             />
-            <p className="text-xs text-slate-500 mt-0.5">Worldwide · {outlets.length} outlets</p>
+            <p className="text-xs text-slate-500 mt-1">Worldwide · {outlets.length} outlets</p>
           </Link>
           {/* Close button — visible on all sizes when sidebar is open */}
           <button
