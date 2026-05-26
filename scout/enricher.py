@@ -209,6 +209,82 @@ def _extract_location_from_html(soup: BeautifulSoup) -> Dict[str, str]:
     return result
 
 
+def _extract_location_from_headings(soup: BeautifulSoup) -> Dict[str, str]:
+    """
+    Scan H1 and H2 tags for city / region hints embedded in news site headlines.
+
+    Many local outlets include their location in top-level headings or the
+    site title, e.g. "Noticias de Guadalajara", "El Diario de Oaxaca",
+    "Monterrey News", etc.  This complements the meta-tag approach and is
+    especially useful for sites hosted on generic .com / CDN infrastructure
+    that would otherwise fool the IP-geolocation fallback.
+
+    Returns a dict with any of: city, region.
+    """
+    result: Dict[str, str] = {}
+
+    # Collect text from the first handful of H1 / H2 tags (plus <title>)
+    heading_texts: List[str] = []
+    if soup.title and soup.title.string:
+        heading_texts.append(soup.title.string.strip())
+    for tag in soup.find_all(["h1", "h2"]):
+        text = tag.get_text(separator=" ", strip=True)
+        if text:
+            heading_texts.append(text)
+        if len(heading_texts) >= 8:
+            break
+
+    if not heading_texts:
+        return result
+
+    # Patterns that capture a city/region name embedded in the heading.
+    # All patterns use a named group `loc`.
+    _HEADING_PATTERNS = [
+        # "Noticias de Guadalajara" / "Informacion de Oaxaca" / "News from Leeds"
+        re.compile(
+            r"(?:noticias|news|informaci[oó]n|actualidad|novedades)\s+"
+            r"(?:de(?:l)?|from|of|en)\s+(?P<loc>[A-ZÁÉÍÓÚÑ][a-záéíóúñ\w\s]{2,30}?)(?:\s*[-|,]|$)",
+            re.IGNORECASE,
+        ),
+        # "El Diario de Monterrey" / "Periódico de Veracruz"
+        re.compile(
+            r"(?:el\s+)?(?:diario|peri[oó]dico|gaceta|correo|heraldo|sol)\s+"
+            r"(?:de(?:l)?|from)\s+(?P<loc>[A-ZÁÉÍÓÚÑ][a-záéíóúñ\w\s]{2,30}?)(?:\s*[-|,]|$)",
+            re.IGNORECASE,
+        ),
+        # "Guadalajara Herald" / "Leeds Gazette" / "Oaxaca Times"
+        re.compile(
+            r"^(?P<loc>[A-ZÁÉÍÓÚÑ][a-záéíóúñ\w\s]{2,30}?)\s+"
+            r"(?:herald|gazette|times|tribune|journal|post|press|daily|news|"
+            r"noticias|informativo|digital)",
+            re.IGNORECASE,
+        ),
+        # "Lagos Daily — Nigeria's Top News"  (city at start before dash)
+        re.compile(
+            r"^(?P<loc>[A-ZÁÉÍÓÚÑ][a-záéíóúñ\w\s]{2,25}?)\s*[-–|]\s+",
+            re.IGNORECASE,
+        ),
+    ]
+
+    for text in heading_texts:
+        for pattern in _HEADING_PATTERNS:
+            m = pattern.search(text)
+            if m:
+                candidate = m.group("loc").strip().title()
+                # Sanity-check: skip very short strings or obvious non-place words
+                _STOP_WORDS = {
+                    "the", "los", "las", "del", "hoy", "web", "digital", "online",
+                    "local", "regional", "nacional", "national", "media", "news",
+                    "mundo", "world", "latest", "breaking", "top",
+                }
+                if len(candidate) >= 3 and candidate.lower() not in _STOP_WORDS:
+                    result["city"] = candidate
+                    log.debug("Geo (heading): extracted city candidate %r from %r", candidate, text[:80])
+                    return result
+
+    return result
+
+
 # ── Nominatim geocoder (OpenStreetMap, free, no key) ─────────────────────────
 
 _NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -269,11 +345,16 @@ def _geocode_nominatim(city: str, country_name: str) -> Optional[Dict]:
 _IPAPI_URL = "http://ip-api.com/json/{}"
 
 
-def _geolocate_by_ip(domain: str) -> Optional[Dict]:
+def _geolocate_by_ip(domain: str, expected_country_name: str = "") -> Optional[Dict]:
     """
     Resolve domain → IP, then call ip-api.com (free, 45 req/min).
     Returns {"city": str, "region": str, "latitude": float, "longitude": float}
     or None on failure.
+
+    When `expected_country_name` is provided the result is silently discarded
+    if the IP-resolved country does not match.  This prevents CDN/cloud IPs
+    (often in the US) from overriding the actual editorial country of a site
+    that uses a generic .com domain.
     """
     try:
         ip = socket.gethostbyname(domain)
@@ -299,6 +380,27 @@ def _geolocate_by_ip(domain: str) -> Optional[Dict]:
     if data.get("status") != "success":
         return None
 
+    # ── Country sanity check ──────────────────────────────────────────────────
+    # Many .com sites are hosted on US-based CDNs (Cloudflare, AWS, etc.).
+    # If the IP says "United States" but we're scouting a different country,
+    # discard the result rather than wrongly tagging the outlet as US-based.
+    if expected_country_name:
+        ip_country = (data.get("country") or "").strip().lower()
+        expected_lower = expected_country_name.strip().lower()
+
+        # Accept if they share enough characters (handles e.g. "México"/"Mexico")
+        country_matches = (
+            ip_country == expected_lower
+            or ip_country in expected_lower
+            or expected_lower in ip_country
+        )
+        if not country_matches:
+            log.debug(
+                "Geo (IP) discarded for %s — IP country %r doesn't match expected %r",
+                domain, data.get("country"), expected_country_name,
+            )
+            return None
+
     return {
         "city":      data.get("city", ""),
         "region":    data.get("regionName", ""),
@@ -317,26 +419,36 @@ def resolve_geo(
 
     Strategy:
       1. Extract city name from the page HTML (schema.org / meta tags)
-      2. If found, geocode it with Nominatim (OSM)
-      3. If not found, fall back to IP geolocation (ip-api.com)
+      2. Scan H1 / H2 headings for embedded city / region names
+      3. If a city hint was found, geocode it with Nominatim (OSM)
+      4. Fall back to IP geolocation — but only if the IP country matches
+         the expected country (avoids tagging CDN-hosted .com sites as US)
 
     Returns {"city": str, "region": str, "latitude": float, "longitude": float}
     or None if nothing could be determined.
     """
-    # Step 1 — HTML extraction
+    # Step 1 — HTML meta / schema.org extraction
     location = _extract_location_from_html(soup)
     city_hint = location.get("city", "").strip()
 
-    # Step 2 — Nominatim geocode
+    # Step 2 — H1 / H2 heading scan (catches sites whose location is in the
+    #           headline / site title but not in structured meta tags)
+    if not city_hint:
+        heading_location = _extract_location_from_headings(soup)
+        city_hint = heading_location.get("city", "").strip()
+
+    # Step 3 — Nominatim geocode when we have a city candidate
     if city_hint:
         geo = _geocode_nominatim(city_hint, country_name)
         if geo and (geo["latitude"] or geo["longitude"]):
             log.debug("Geo (Nominatim): %s → %.4f, %.4f", city_hint, geo["latitude"], geo["longitude"])
             return geo
 
-    # Step 3 — IP fallback
+    # Step 4 — IP fallback, validated against the target country.
+    # Discards results where the IP resolves to a different country (e.g. a
+    # .com site served from a US-based CDN like Cloudflare or AWS).
     domain = urlparse(url).netloc.lstrip("www.")
-    geo = _geolocate_by_ip(domain)
+    geo = _geolocate_by_ip(domain, expected_country_name=country_name)
     if geo and (geo["latitude"] or geo["longitude"]):
         log.debug("Geo (IP): %s → %.4f, %.4f", domain, geo["latitude"], geo["longitude"])
         return geo

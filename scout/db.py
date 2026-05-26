@@ -209,27 +209,47 @@ def upsert_media_outlet(
         existing = cur.fetchone()
 
         if existing:
-            # Only overwrite rss_url if we have a new value (don't clear existing)
+            # Re-enrich path: update all enriched metadata including geo.
+            # city_id / lat / lon: only overwrite when the enricher returned a
+            # real value so we don't accidentally replace a known location with NULL.
+            # rss_url: only overwrite when we have a new value.
             if rss_url:
                 cur.execute(
                     """
                     UPDATE media_outlets
-                    SET name=%s, type=%s, language=%s, description=COALESCE(%s, description),
-                        logo_url=COALESCE(%s, logo_url), rss_url=%s, has_rss=1, updated_at=NOW()
-                    WHERE id=%s
+                    SET name        = %s,
+                        type        = %s,
+                        language    = %s,
+                        description = COALESCE(%s, description),
+                        logo_url    = COALESCE(%s, logo_url),
+                        rss_url     = %s,
+                        has_rss     = 1,
+                        city_id     = COALESCE(%s, city_id),
+                        latitude    = COALESCE(%s, latitude),
+                        longitude   = COALESCE(%s, longitude),
+                        updated_at  = NOW()
+                    WHERE id = %s
                     """,
                     (name, outlet_type, language, description, logo_url,
-                     rss_url, existing["id"]),
+                     rss_url, city_id or None, lat, lon, existing["id"]),
                 )
             else:
                 cur.execute(
                     """
                     UPDATE media_outlets
-                    SET name=%s, type=%s, language=%s, description=COALESCE(%s, description),
-                        logo_url=COALESCE(%s, logo_url), updated_at=NOW()
-                    WHERE id=%s
+                    SET name        = %s,
+                        type        = %s,
+                        language    = %s,
+                        description = COALESCE(%s, description),
+                        logo_url    = COALESCE(%s, logo_url),
+                        city_id     = COALESCE(%s, city_id),
+                        latitude    = COALESCE(%s, latitude),
+                        longitude   = COALESCE(%s, longitude),
+                        updated_at  = NOW()
+                    WHERE id = %s
                     """,
-                    (name, outlet_type, language, description, logo_url, existing["id"]),
+                    (name, outlet_type, language, description, logo_url,
+                     city_id or None, lat, lon, existing["id"]),
                 )
             conn.commit()
             return existing["id"], False
@@ -299,6 +319,92 @@ def get_outlets_for_rss_check(
     with conn.cursor() as cur:
         cur.execute(sql, params or None)
         return cur.fetchall()
+
+
+def get_outlets_for_reenrich(
+    conn: pymysql.connections.Connection,
+    country_code: str = "",
+    limit: int = 0,
+) -> List[Dict]:
+    """
+    Return active outlets whose metadata should be refreshed by re-running the
+    enricher.  Includes country_name so the enricher's geo logic can validate
+    IP results against the expected country.
+
+    Optionally scoped to a country code and/or capped to `limit` rows.
+    """
+    sql = """
+        SELECT mo.id, mo.url, mo.name, mo.city_id,
+               ct.name AS country_name, ct.code AS country_code
+        FROM   media_outlets mo
+        JOIN   cities    c  ON c.id  = mo.city_id
+        JOIN   regions   r  ON r.id  = c.region_id
+        JOIN   countries ct ON ct.id = r.country_id
+        WHERE  mo.is_active = 1
+          AND  mo.deleted_at IS NULL
+    """
+    params: list = []
+
+    if country_code:
+        sql += " AND ct.code = %s"
+        params.append(country_code.upper())
+
+    sql += " ORDER BY mo.id"
+
+    if limit:
+        sql += " LIMIT %s"
+        params.append(limit)
+
+    with conn.cursor() as cur:
+        cur.execute(sql, params or None)
+        return cur.fetchall()
+
+
+def update_outlet_full(
+    conn: pymysql.connections.Connection,
+    outlet_id: int,
+    city_id: int,
+    data: dict,
+) -> None:
+    """
+    Overwrite all enriched fields (including geo) for an existing outlet.
+    Called by the re-enrich job.
+    """
+    rss_url = data.get("rss_url") or None
+    has_rss = 1 if rss_url else 0
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE media_outlets
+            SET name        = %s,
+                type        = %s,
+                language    = %s,
+                description = COALESCE(%s, description),
+                logo_url    = COALESCE(%s, logo_url),
+                rss_url     = COALESCE(%s, rss_url),
+                has_rss     = GREATEST(has_rss, %s),
+                city_id     = COALESCE(%s, city_id),
+                latitude    = COALESCE(%s, latitude),
+                longitude   = COALESCE(%s, longitude),
+                updated_at  = NOW()
+            WHERE id = %s
+            """,
+            (
+                data.get("name") or data["url"],
+                data.get("type", "digital"),
+                (data.get("language") or "en")[:10],
+                data.get("description") or None,
+                data.get("logo_url") or None,
+                rss_url,
+                has_rss,
+                city_id or None,
+                data.get("latitude") or None,
+                data.get("longitude") or None,
+                outlet_id,
+            ),
+        )
+    conn.commit()
 
 
 def update_outlet_rss(

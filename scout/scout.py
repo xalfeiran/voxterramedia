@@ -36,6 +36,16 @@ Usage
   # Check RSS for at most 50 outlets
   python scout.py --check-rss --max 50
 
+  # Re-run the enricher on existing outlets and refresh all metadata
+  # (use after geo-detection improvements to fix mis-tagged outlets)
+  python scout.py --re-enrich
+
+  # Re-enrich only outlets for a specific country
+  python scout.py --re-enrich --country MX
+
+  # Re-enrich at most 100 outlets, dry-run first to preview
+  python scout.py --re-enrich --max 100 --dry-run
+
 Options
 -------
   --country CODE    ISO 2-letter country code to target
@@ -251,6 +261,135 @@ def run_job(
     return {"found": urls_found, "saved": urls_saved, "skipped": urls_skipped}
 
 
+# ── Re-enrich job ────────────────────────────────────────────────────────────
+
+
+def run_reenrich(
+    conn,
+    country_code: str = "",
+    max_results: int = 0,
+    delay: float = 1.5,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Iterate existing outlets in the DB, re-run the enricher on each one, and
+    write back *all* updated metadata — including geo (city, coordinates) which
+    the normal upsert used to leave untouched for existing records.
+
+    This is especially useful after improvements to geographic detection (e.g.
+    the H1/H2 heading scan and the IP-country validation added to resolve_geo)
+    so that outlets previously mis-tagged (e.g. .com CDN sites assigned to US)
+    can be corrected without a full re-crawl.
+    """
+    outlets = db.get_outlets_for_reenrich(
+        conn, country_code=country_code, limit=max_results
+    )
+    total   = len(outlets)
+    updated = 0
+    skipped = 0
+    failed  = 0
+
+    log.info(
+        "🔄 Re-enrich — outlets to process: %d | country: %s | dry_run: %s",
+        total, country_code or "all", dry_run,
+    )
+
+    for i, outlet in enumerate(outlets, 1):
+        log.info("  [%d/%d] %s", i, total, outlet["url"])
+        try:
+            meta = enricher.enrich(
+                outlet["url"],
+                country_name=outlet.get("country_name", ""),
+            )
+            if meta is None:
+                log.warning("    ↳ could not enrich — skipping")
+                failed += 1
+                continue
+
+            log.info(
+                "    ↳ name=%r  lang=%s  type=%s  city=%r  rss=%d",
+                meta["name"], meta["language"], meta["type"],
+                meta.get("city") or "—", len(meta["rss_feeds"]),
+            )
+
+            if dry_run:
+                updated += 1
+                continue
+
+            # Resolve city_id (same logic as the main scout job)
+            city_name   = (meta.get("city") or "").strip()
+            region_name = (meta.get("region") or "").strip()
+            lat         = meta.get("latitude")
+            lon         = meta.get("longitude")
+
+            # Build a minimal country dict from what the outlet row gives us
+            country_stub = {
+                "id":   None,   # not needed for city lookup
+                "code": outlet.get("country_code", ""),
+                "name": outlet.get("country_name", ""),
+            }
+
+            if city_name:
+                try:
+                    # We need a country_id — look it up
+                    country_row = db.get_country_by_code(
+                        conn, outlet.get("country_code", "")
+                    )
+                    if country_row:
+                        region_id = db.find_or_create_region(
+                            conn,
+                            country_id=country_row["id"],
+                            region_name=region_name or city_name,
+                        )
+                        city_id = db.find_or_create_city(
+                            conn,
+                            region_id=region_id,
+                            city_name=city_name,
+                            lat=lat or 0.0,
+                            lon=lon or 0.0,
+                        )
+                    else:
+                        city_id = outlet["city_id"]  # keep existing
+                except Exception as exc:
+                    log.warning("    ↳ city lookup failed (%s), keeping existing", exc)
+                    city_id = outlet["city_id"]
+            else:
+                city_id = outlet["city_id"]  # keep existing city assignment
+
+            rss_url = meta["rss_feeds"][0] if meta.get("rss_feeds") else None
+            db.update_outlet_full(
+                conn,
+                outlet_id=outlet["id"],
+                city_id=city_id,
+                data={
+                    "url":         meta["url"],
+                    "name":        meta["name"],
+                    "type":        meta["type"],
+                    "language":    meta["language"],
+                    "description": meta["description"],
+                    "logo_url":    meta["logo_url"],
+                    "latitude":    lat,
+                    "longitude":   lon,
+                    "rss_url":     rss_url,
+                },
+            )
+            log.info("    ↳ updated outlet #%d", outlet["id"])
+            updated += 1
+
+        except Exception as exc:
+            log.error("    ↳ error for %s: %s", outlet["url"], exc)
+            failed += 1
+
+        if delay and i < total:
+            time.sleep(delay)
+
+    log.info(
+        "✅ Re-enrich done — scanned: %d | updated: %d | skipped: %d | failed: %d",
+        total, updated, skipped, failed,
+    )
+    return {"scanned": total, "updated": updated, "skipped": skipped, "failed": failed}
+
+
 # ── RSS check job ─────────────────────────────────────────────────────────────
 
 def run_rss_check(
@@ -332,6 +471,10 @@ def parse_args() -> argparse.Namespace:
                    help="Search + enrich but skip DB writes")
     p.add_argument("--check-rss", action="store_true",
                    help="Scan existing outlets in DB and update their RSS status")
+    p.add_argument("--re-enrich", action="store_true",
+                   help="Re-run the enricher on existing outlets and refresh all metadata "
+                        "(name, language, type, geo, RSS).  Use after geo-detection "
+                        "improvements to fix mis-tagged outlets.")
     p.add_argument("--verbose",   action="store_true")
     return p.parse_args()
 
@@ -362,6 +505,19 @@ def main() -> None:
         else:
             log.error("DB connection required. Use --dry-run --country=XX to run without DB.")
             sys.exit(1)
+
+    # ── Re-enrich mode ────────────────────────────────────────────────────────
+    if args.re_enrich:
+        run_reenrich(
+            conn=conn,
+            country_code=args.country or "",
+            max_results=args.max,
+            delay=args.delay,
+            dry_run=args.dry_run,
+        )
+        if conn:
+            conn.close()
+        return
 
     # ── RSS check mode ────────────────────────────────────────────────────────
     if args.check_rss:
