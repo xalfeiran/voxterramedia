@@ -7,8 +7,8 @@ use App\Http\Requests\MediaOutletRequest;
 use App\Http\Resources\MediaOutletResource;
 use App\Http\Resources\MediaOutletMapResource;
 use App\Models\MediaOutlet;
+use App\Services\RssReader;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class MediaOutletController extends Controller
@@ -74,7 +74,7 @@ class MediaOutletController extends Controller
         return MediaOutletMapResource::collection($outlets);
     }
 
-    public function feed(string $slug)
+    public function feed(RssReader $rss, string $slug)
     {
         $outlet = MediaOutlet::where('slug', $slug)->firstOrFail();
 
@@ -82,93 +82,7 @@ class MediaOutletController extends Controller
             return response()->json(['data' => [], 'message' => 'No RSS feed available for this outlet.'], 200);
         }
 
-        try {
-            $response = Http::timeout(10)
-                ->withHeaders(['User-Agent' => 'VoxTerra.media/1.0 (RSS Reader)'])
-                ->get($outlet->rss_url);
-
-            if (!$response->successful()) {
-                return response()->json(['data' => [], 'message' => 'Could not fetch RSS feed.'], 200);
-            }
-
-            $items = $this->parseRssFeed($response->body());
-
-            return response()->json(['data' => $items]);
-        } catch (\Exception $e) {
-            return response()->json(['data' => [], 'message' => 'Failed to parse RSS feed.'], 200);
-        }
-    }
-
-    private function parseRssFeed(string $xml): array
-    {
-        libxml_use_internal_errors(true);
-        $doc = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOCDATA);
-        if (!$doc) return [];
-
-        $items = [];
-
-        // ── RSS 2.0 ────────────────────────────────────────────────────────
-        if (isset($doc->channel->item)) {
-            foreach ($doc->channel->item as $item) {
-                $ns       = $item->getNamespaces(true);
-                $media    = isset($ns['media'])   ? $item->children($ns['media'])   : null;
-                $content  = isset($ns['content']) ? $item->children($ns['content']) : null;
-
-                $image = null;
-                if ($media && isset($media->thumbnail)) {
-                    $image = (string) $media->thumbnail->attributes()['url'] ?? null;
-                } elseif ($media && isset($media->content)) {
-                    $image = (string) $media->content->attributes()['url'] ?? null;
-                } elseif ($content && isset($content->encoded)) {
-                    preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', (string) $content->encoded, $m);
-                    $image = $m[1] ?? null;
-                }
-
-                $items[] = [
-                    'title'       => (string) $item->title,
-                    'link'        => (string) $item->link,
-                    'description' => strip_tags((string) $item->description),
-                    'pub_date'    => (string) $item->pubDate,
-                    'image'       => $image,
-                ];
-
-                if (count($items) >= 10) break;
-            }
-            return $items;
-        }
-
-        // ── Atom ───────────────────────────────────────────────────────────
-        $ns   = $doc->getNamespaces(true);
-        $atom = $doc->children($ns[''] ?? 'http://www.w3.org/2005/Atom');
-
-        foreach ($doc->entry ?? [] as $entry) {
-            $link = '';
-            foreach ($entry->link as $l) {
-                $rel = (string) $l->attributes()['rel'];
-                if ($rel === 'alternate' || $rel === '') {
-                    $link = (string) $l->attributes()['href'];
-                    break;
-                }
-            }
-
-            $image = null;
-            if (isset($entry->content)) {
-                preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', (string) $entry->content, $m);
-                $image = $m[1] ?? null;
-            }
-
-            $items[] = [
-                'title'       => (string) $entry->title,
-                'link'        => $link,
-                'description' => strip_tags((string) ($entry->summary ?? $entry->content ?? '')),
-                'pub_date'    => (string) ($entry->updated ?? $entry->published ?? ''),
-                'image'       => $image,
-            ];
-
-            if (count($items) >= 10) break;
-        }
-
-        return $items;
+        return response()->json(['data' => $rss->fetch($outlet->rss_url)]);
     }
 
     public function show(string $slug)

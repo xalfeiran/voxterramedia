@@ -25,6 +25,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/regions',                [RegionController::class, 'index']);
         Route::get('/cities',                 [CityController::class, 'index']);
+        Route::get('/cities/{airport}/news',  [CityController::class, 'news']);
 
         Route::get('/media-outlets/map',           [MediaOutletController::class, 'map']);
         Route::get('/media-outlets',               [MediaOutletController::class, 'index']);
