@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\City;
+use App\Models\MediaOutlet;
 use App\Services\RssReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -40,22 +41,26 @@ class CityController extends Controller
     }
 
     /**
-     * Aggregated news feed for a city, looked up by IATA airport/metro code.
+     * Aggregated news feed for an IATA airport/metro code.
      * e.g. GET /api/v1/cities/DFW/news  ->  merged items from every active,
-     * RSS-enabled outlet in Dallas–Fort Worth, newest first.
+     * RSS-enabled outlet across ALL cities sharing that code (a metro code
+     * like DFW spans Dallas + Fort Worth), newest first.
      */
     public function news(Request $request, RssReader $rss, string $airport)
     {
-        $city = City::with('region.country')->byAirport($airport)->first();
+        $code = strtoupper(trim($airport));
 
-        if (!$city) {
+        $cities = City::with('region.country')->byAirport($code)->get();
+
+        if ($cities->isEmpty()) {
             return response()->json([
                 'data'    => [],
-                'message' => 'No city found for airport code ' . strtoupper(trim($airport)) . '.',
+                'message' => 'No city found for airport code ' . $code . '.',
             ], 404);
         }
 
-        $outlets = $city->mediaOutlets()
+        $outlets = MediaOutlet::query()
+            ->whereIn('city_id', $cities->pluck('id'))
             ->active()
             ->hasRss()
             ->whereNotNull('rss_url')
@@ -65,7 +70,7 @@ class CityController extends Controller
         $perFeed = min((int) $request->get('per_feed', 10), 25);
 
         // Cache the aggregated result briefly — fetching many remote feeds is slow.
-        $cacheKey = "city-news:{$city->id}:{$limit}:{$perFeed}";
+        $cacheKey = "city-news:{$code}:{$limit}:{$perFeed}";
 
         $items = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($outlets, $rss, $limit, $perFeed) {
             if ($outlets->isEmpty()) {
@@ -113,18 +118,20 @@ class CityController extends Controller
             }, $merged);
         });
 
+        $country = $cities->first()->region->country;
+
         return response()->json([
             'data' => $items,
             'meta' => [
-                'city' => [
-                    'id'           => $city->id,
-                    'name'         => $city->name,
-                    'slug'         => $city->slug,
-                    'airport_code' => $city->airport_code,
-                ],
+                'airport_code' => $code,
+                'cities'       => $cities->map(fn($c) => [
+                    'id'   => $c->id,
+                    'name' => $c->name,
+                    'slug' => $c->slug,
+                ])->values(),
                 'country'       => [
-                    'code' => $city->region->country->code,
-                    'name' => $city->region->country->name,
+                    'code' => $country->code,
+                    'name' => $country->name,
                 ],
                 'outlets_count' => $outlets->count(),
                 'count'         => count($items),

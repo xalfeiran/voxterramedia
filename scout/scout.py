@@ -207,6 +207,7 @@ def run_job(
                     city_name=city_name,
                     lat=lat or 0.0,
                     lon=lon or 0.0,
+                    country_code=country["code"],
                 )
             except Exception as exc:
                 log.warning("    ↳ city lookup failed (%s), using national stub", exc)
@@ -347,6 +348,7 @@ def run_reenrich(
                             city_name=city_name,
                             lat=lat or 0.0,
                             lon=lon or 0.0,
+                            country_code=outlet.get("country_code", ""),
                         )
                     else:
                         city_id = outlet["city_id"]  # keep existing
@@ -475,6 +477,9 @@ def parse_args() -> argparse.Namespace:
                    help="Re-run the enricher on existing outlets and refresh all metadata "
                         "(name, language, type, geo, RSS).  Use after geo-detection "
                         "improvements to fix mis-tagged outlets.")
+    p.add_argument("--backfill-airports", action="store_true",
+                   help="One-off: resolve and set IATA airport_code for every city "
+                        "that lacks one, then exit.")
     p.add_argument("--verbose",   action="store_true")
     return p.parse_args()
 
@@ -505,6 +510,17 @@ def main() -> None:
         else:
             log.error("DB connection required. Use --dry-run --country=XX to run without DB.")
             sys.exit(1)
+
+    # ── Backfill airport codes mode ───────────────────────────────────────────
+    if args.backfill_airports:
+        if not conn:
+            log.error("Backfill requires a DB connection.")
+            sys.exit(1)
+        log.info("Backfilling city airport codes…")
+        updated, scanned = db.backfill_airport_codes(conn)
+        log.info("Airport-code backfill complete: %d/%d cities updated.", updated, scanned)
+        conn.close()
+        return
 
     # ── Re-enrich mode ────────────────────────────────────────────────────────
     if args.re_enrich:

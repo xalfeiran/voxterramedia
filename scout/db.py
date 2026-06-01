@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 import pymysql
 import pymysql.cursors
 
+import airports
 import config
 
 log = logging.getLogger(__name__)
@@ -133,27 +134,76 @@ def find_or_create_city(
     city_name: str,
     lat: float = 0.0,
     lon: float = 0.0,
+    country_code: str = "",
 ) -> int:
-    """Return city.id, creating a stub record if needed."""
+    """
+    Return city.id, creating a stub record if needed.
+
+    When a country_code is supplied, the city's IATA airport_code is resolved
+    from the curated map and stored — both on insert and as a backfill for an
+    existing row whose airport_code is still NULL.
+    """
     slug = _slugify(city_name)
+    code = airports.resolve(country_code, city_name) if country_code else None
+
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id FROM cities WHERE region_id = %s AND slug = %s",
+            "SELECT id, airport_code FROM cities WHERE region_id = %s AND slug = %s",
             (region_id, slug),
         )
         row = cur.fetchone()
         if row:
+            # Backfill the code if we now know it and the row is missing one.
+            if code and not row.get("airport_code"):
+                cur.execute(
+                    "UPDATE cities SET airport_code = %s, updated_at = NOW() WHERE id = %s",
+                    (code, row["id"]),
+                )
+                conn.commit()
             return row["id"]
 
         cur.execute(
             """
-            INSERT INTO cities (region_id, name, slug, latitude, longitude, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+            INSERT INTO cities (region_id, name, slug, airport_code, latitude, longitude, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
             """,
-            (region_id, city_name, slug, lat, lon),
+            (region_id, city_name, slug, code, lat, lon),
         )
         conn.commit()
         return cur.lastrowid
+
+
+def backfill_airport_codes(conn: pymysql.connections.Connection) -> Tuple[int, int]:
+    """
+    One-off: resolve and set airport_code for every city that lacks one.
+    Returns (updated, scanned).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT c.id, c.name, co.code AS country_code
+            FROM   cities    c
+            JOIN   regions   r  ON r.id  = c.region_id
+            JOIN   countries co ON co.id = r.country_id
+            WHERE  c.airport_code IS NULL
+            """
+        )
+        rows = cur.fetchall()
+
+    updated = 0
+    for row in rows:
+        code = airports.resolve(row.get("country_code", ""), row.get("name", ""))
+        if not code:
+            continue
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE cities SET airport_code = %s, updated_at = NOW() WHERE id = %s",
+                (code, row["id"]),
+            )
+        updated += 1
+
+    conn.commit()
+    return updated, len(rows)
 
 
 def get_or_create_national_city(
