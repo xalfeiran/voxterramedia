@@ -195,14 +195,19 @@ def backfill_airport_codes(conn: pymysql.connections.Connection) -> Tuple[int, i
         code = airports.resolve(row.get("country_code", ""), row.get("name", ""))
         if not code:
             continue
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE cities SET airport_code = %s, updated_at = NOW() WHERE id = %s",
-                (code, row["id"]),
-            )
-        updated += 1
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE cities SET airport_code = %s, updated_at = NOW() WHERE id = %s",
+                    (code, row["id"]),
+                )
+            conn.commit()
+            updated += 1
+        except Exception as exc:  # noqa: BLE001 - skip the row, keep going
+            conn.rollback()
+            log.warning("Could not set %s for city #%s (%s): %s",
+                        code, row.get("id"), row.get("name"), exc)
 
-    conn.commit()
     return updated, len(rows)
 
 
