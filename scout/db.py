@@ -211,6 +211,52 @@ def backfill_airport_codes(conn: pymysql.connections.Connection) -> Tuple[int, i
     return updated, len(rows)
 
 
+def airport_link_report(
+    conn: pymysql.connections.Connection, code: str = ""
+) -> Tuple[Dict, List[Dict]]:
+    """
+    Diagnostic for the city <-> airport_code <-> outlet linkage.
+
+    Returns (summary, rows) where summary has total/coded/distinct-code counts
+    and rows breaks each airport_code into city count, total outlets, and the
+    count of usable (active + has_rss + rss_url) outlets — i.e. exactly what the
+    /cities/{airport}/news endpoint can serve. Pass `code` to focus one metro.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COUNT(*)                       AS total_cities,
+                   COUNT(airport_code)            AS coded_cities,
+                   COUNT(DISTINCT airport_code)   AS distinct_codes
+            FROM cities
+            """
+        )
+        summary = cur.fetchone()
+
+        sql = """
+            SELECT c.airport_code                       AS code,
+                   COUNT(DISTINCT c.id)                 AS cities,
+                   COUNT(mo.id)                         AS outlets,
+                   SUM(CASE WHEN mo.is_active = 1
+                             AND mo.has_rss = 1
+                             AND mo.rss_url IS NOT NULL
+                            THEN 1 ELSE 0 END)          AS rss_outlets
+            FROM   cities c
+            LEFT JOIN media_outlets mo ON mo.city_id = c.id
+            WHERE  c.airport_code IS NOT NULL
+        """
+        params: tuple = ()
+        if code:
+            sql += " AND c.airport_code = %s"
+            params = (code.strip().upper(),)
+        sql += " GROUP BY c.airport_code ORDER BY rss_outlets DESC, code"
+
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    return summary, rows
+
+
 def get_or_create_national_city(
     conn: pymysql.connections.Connection, country: dict
 ) -> int:

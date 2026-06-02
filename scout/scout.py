@@ -480,6 +480,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--backfill-airports", action="store_true",
                    help="One-off: resolve and set IATA airport_code for every city "
                         "that lacks one, then exit.")
+    p.add_argument("--airport-report", action="store_true",
+                   help="Diagnostic: print airport_code coverage and how many "
+                        "active RSS outlets each code can serve, then exit. "
+                        "Combine with --country to focus a single code, e.g. "
+                        "--airport-report --country=DFW.")
     p.add_argument("--verbose",   action="store_true")
     return p.parse_args()
 
@@ -510,6 +515,30 @@ def main() -> None:
         else:
             log.error("DB connection required. Use --dry-run --country=XX to run without DB.")
             sys.exit(1)
+
+    # ── Airport linkage report mode ───────────────────────────────────────────
+    if args.airport_report:
+        if not conn:
+            log.error("Report requires a DB connection.")
+            sys.exit(1)
+        focus = (args.country or "").strip().upper()
+        summary, rows = db.airport_link_report(conn, focus)
+        log.info("Cities: %s total, %s with a code, %s distinct codes.",
+                 summary.get("total_cities"), summary.get("coded_cities"),
+                 summary.get("distinct_codes"))
+        if focus:
+            log.info("Focus: %s", focus)
+        if not rows:
+            log.warning("No coded cities%s — run --backfill-airports first.",
+                        f" for {focus}" if focus else "")
+        else:
+            log.info("%-6s %-7s %-8s %-11s", "CODE", "CITIES", "OUTLETS", "RSS-READY")
+            for r in rows:
+                log.info("%-6s %-7s %-8s %-11s",
+                         r.get("code"), r.get("cities"),
+                         r.get("outlets"), int(r.get("rss_outlets") or 0))
+        conn.close()
+        return
 
     # ── Backfill airport codes mode ───────────────────────────────────────────
     if args.backfill_airports:

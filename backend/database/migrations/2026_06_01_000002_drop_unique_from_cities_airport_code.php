@@ -14,32 +14,27 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::table('cities', function (Blueprint $table) {
-            // Drop the unique index if it's present (named by Laravel convention).
-            try {
-                $table->dropUnique('cities_airport_code_unique');
-            } catch (\Throwable $e) {
-                // already dropped / never existed — ignore
-            }
-        });
+        // Pre-check, then queue the command — Laravel runs the ALTER only after
+        // the closure returns, so a try/catch *inside* the closure wouldn't catch
+        // an execution-time error. Branch on existence instead.
+        if ($this->indexExists('cities', 'cities_airport_code_unique')) {
+            Schema::table('cities', fn (Blueprint $table) => $table->dropUnique('cities_airport_code_unique'));
+        }
 
-        Schema::table('cities', function (Blueprint $table) {
-            if (!$this->indexExists('cities', 'cities_airport_code_index')) {
-                $table->index('airport_code');
-            }
-        });
+        if (!$this->indexExists('cities', 'cities_airport_code_index')) {
+            Schema::table('cities', fn (Blueprint $table) => $table->index('airport_code'));
+        }
     }
 
     public function down(): void
     {
-        Schema::table('cities', function (Blueprint $table) {
-            try {
-                $table->dropIndex('cities_airport_code_index');
-            } catch (\Throwable $e) {
-                // ignore
-            }
-            $table->unique('airport_code');
-        });
+        if ($this->indexExists('cities', 'cities_airport_code_index')) {
+            Schema::table('cities', fn (Blueprint $table) => $table->dropIndex('cities_airport_code_index'));
+        }
+
+        if (!$this->indexExists('cities', 'cities_airport_code_unique')) {
+            Schema::table('cities', fn (Blueprint $table) => $table->unique('airport_code'));
+        }
     }
 
     private function indexExists(string $table, string $index): bool
