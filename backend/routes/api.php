@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AirportImpactController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BulkImportController;
 use App\Http\Controllers\Api\V1\CityController;
@@ -33,6 +34,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/media-outlets/{slug}',        [MediaOutletController::class, 'show']);
 
         Route::get('/stats',                  [StatsController::class, 'index']);
+
+        // Tier-1 flight-impact (FAA NAS + AviationWeather + NWS)
+        Route::get('/airports/{iata}/impact', [AirportImpactController::class, 'impact']);
     });
 
     // ── Auth (10 req/min) ──────────────────────────────────────────────────
